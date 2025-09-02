@@ -1,0 +1,1597 @@
+---
+title: "sensitivity analhyses"
+format: html
+editor: visual
+---
+
+# Sensitivity analyses
+
+#### Load libraries
+
+```{r load libraries}
+library(readxl)
+library(tidyverse)
+library(pROC)
+library(boot)
+library(gtsummary)
+library(ggpubr)
+library(ggbeeswarm)
+library(pROC)
+library(see)
+```
+
+## 1. Centiloid cutoff 12?
+
+------------------------------------------------------------------------
+
+##  2. Outliers removed
+
+------------------------------------------------------------------------
+
+### 2A. BioFINDER-Memory clinic
+
+```{r set up data BF-MC}
+#| echo: false
+df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/LP_PlasmaCSF_300625.xlsx")
+df.val <- df %>% filter(df$Study %in% "VALIDATE")
+df <- df.val #124
+
+#change names etc.
+names(df)[names(df) == "Plasma_Ptau217P_pgmL_Lumi"] <- "ptau217"
+df$ptau217 <- as.numeric(as.character(df$ptau217))
+names(df)[names(df) == "csf_clinical_routine_Abeta42_40_ratio_x10"] <- "csf_4240"
+df$csf_4240 <- as.numeric(as.character(df$csf_4240))
+df$csf_4240 <- df$csf_4240/10
+#pass passing-bablok transformation for Lumipulse AB42 assay
+df$Plasma_AB142_pgmL_Lumi_c <- 1.119 + 1.114*df$Plasma_AB142_pgmL_Lumi
+df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi_c)
+
+df <- df %>% select(sid_bf2, sid_diag, VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi, PL_217_42_n, petstat)
+df <- df %>% drop_na(csf_4240, ptau217)
+```
+
+### Analyses VR Outliers BFMC
+
+```{r outliers VR outcome, BFMC}
+##AUC differences with DeLong
+
+df$petstat <- as.factor(df$VR_overall)
+outliervalue_ptau217_up <- mean(df$ptau217) + 3*sd(df$ptau217)
+#outliervalue_ptau217_low <- mean(df$ptau217) - 3*sd(df$ptau217) #negative
+outliervalue_ptau217ab42_up <- mean(df$PL_217_42) + 3*sd(df$PL_217_42)
+outliervalue_csf_up <- mean(df$csf_4240) + 3*sd(df$csf_4240)
+df.outlier <- df %>% filter(ptau217 < outliervalue_ptau217_up & PL_217_42 < outliervalue_ptau217ab42_up & csf_4240 < outliervalue_csf_up)
+
+
+
+biomarkers <- c("ptau217","PL_217_42", "csf_4240")
+results_delong <- list()
+index <- 1
+
+for (i in seq_along(biomarkers)){
+  for (j in seq_along(biomarkers)){ 
+    if (i < j) {
+      predictor1 <- biomarkers[i]
+      predictor2 <- biomarkers[j]
+ 
+      formula1 <- as.formula(paste("petstat~",predictor1, collapse=""))
+      formula2 <- as.formula(paste("petstat~",predictor2, collapse=""))
+      
+      roc_curve1 <- pROC::roc(formula1, data=df.outlier, quiet=T)
+      roc_curve2 <- pROC::roc(formula2, data=df.outlier,quiet=T)
+      
+      res <- roc.test(roc_curve1, roc_curve2, method = "delong")
+      
+      long <- data.frame(
+        comp = paste(predictor1, predictor2, sep=" vs. "),
+        auc1a = round(roc_curve1$auc,3),
+        auc2a = round(roc_curve2$auc,3),
+        pval = round(res$p.value,3),
+        auc1_ci_low = round(ci.auc(roc_curve1)[1],3),
+        auc1_ci_high =round(ci.auc(roc_curve1)[3],3),
+        auc2_ci_low =round(ci.auc(roc_curve2)[1],3),
+        auc2_ci_high = round(ci.auc(roc_curve2)[3],3)
+        )
+      
+      results_delong[[length(results_delong) + 1]] <- long
+      index <- index + 1
+    }
+  }
+}
+
+results_delong <- do.call(rbind.data.frame, results_delong)
+results_delong$padj <- round(p.adjust(results_delong$pval, method = "fdr"),3)
+results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], results_delong$auc2a[3])
+results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
+results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
+openxlsx::write.xlsx(results_delong,
+                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/DELONG_VR_outliers.xlsx")
+
+
+df.outlier$petstat <- as.factor(df.outlier$VR_overall)
+df.outlier <- df.outlier %>% drop_na(csf_4240)
+
+df.outlier$ptau217_pos <- ifelse(df.outlier$ptau217 >= 0.23211, 1, 0) 
+df.outlier$ptau217_neg <- ifelse(df.outlier$ptau217 <= 0.08681, 0, 1)
+
+df.outlier$ptau217ab42_pos <- ifelse(df.outlier$PL_217_42 >= 0.00738, 1, 0) 
+df.outlier$ptau217ab42_neg <- ifelse(df.outlier$PL_217_42 <= 0.00370, 0, 1)
+
+df.outlier$ab4240_pos <- ifelse(df.outlier$csf_4240 <= 0.072, 1, 0)
+df.outlier$ab4240_pos2 <- ifelse(df.outlier$csf_4240 <= 0.058, 1, 0)
+
+#Step 1: 1 cutoff
+
+##Calculate Accuracy, PPV, NPV and 95% CIs
+
+f_comp_stats <- function(data, indices) {
+  d <- as.data.frame(data[indices,])
+  
+  ##threshold calculation related to d, and then assign binary status based on that threshold
+  compute_metrics <- function(true, pred) {
+    
+    ##threshold calculation and 
+    
+    v_tp <- sum(true == 1 & pred == 1)
+    v_fp <- sum(true == 0 & pred == 1)
+    v_tn <- sum(true == 0 & pred == 0)
+    v_fn <- sum(true == 1 & pred == 0)
+    
+    sens <- v_tp / (v_tp + v_fn)
+    spec <- v_tn / (v_tn + v_fp)
+    acc <- (v_tp + v_tn) / (v_tp + v_tn + v_fn + v_fp)
+    ppv <- cutpointr::ppv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    npv <- cutpointr::npv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    
+    return(c(acc, ppv, npv, sens, spec, v_tp, v_fp, v_tn, v_fn))#sens#spec
+  }
+  
+  test_columns <- c("ptau217_pos","ptau217ab42_pos", "ab4240_pos")
+  results <- matrix(nrow = length(test_columns), ncol = 9)
+  colnames(results) <- c("Accuracy", "PPV", "NPV", "Sensitivity", "Specificity", "TP", "FP", "TN", "FN")
+  rownames(results) <- c("ptau217", "PL_217_42", "csf_4240")
+  
+  for (i in seq_along(test_columns)) {
+    results[i, ] <- round(compute_metrics(d$petstat, d[[test_columns[i]]]),3)
+  }
+  
+  #Assign p-tau217 metrics
+  acc1 <- results[1,1]
+  ppv1 <- results[1,2]
+  npv1 <- results[1,3]
+  sens1 <- results[1,4]
+  spec1 <- results[1,5]
+  tp1 <- results[1,6]
+  fp1 <- results[1,7]
+  tn1 <- results[1,8]
+  fn1 <- results[1,9]
+  
+  #Assign p-tau217/AB42 metrics
+  acc2 <- results[2,1]
+  ppv2 <- results[2,2]
+  npv2 <- results[2,3]
+  sens2 <- results[2,4]
+  spec2 <- results[2,5]
+  tp2 <- results[2,6]
+  fp2 <- results[2,7]
+  tn2 <- results[2,8]
+  fn2 <- results[2,9]
+  
+  #Assign CSF metrics
+  acc3 <- results[3,1]
+  ppv3 <- results[3,2]
+  npv3 <- results[3,3]
+  sens3 <- results[3,4]
+  spec3 <- results[3,5]
+  tp3 <- results[3,6]
+  fp3 <- results[3,7]
+  tn3 <- results[3,8]
+  fn3 <- results[3,9]
+  
+  #p-tau217 vs. 217/ab42
+  diff_acc_217_217ab42 <- acc1 - acc2
+  diff_ppv_217_217ab42 <- ppv1 - ppv2
+  diff_npv_217_217ab42 <- npv1 - npv2
+  diff_sens_217_217ab42 <- sens1 - sens2
+  
+  #p-tau217 vs. CSF
+  diff_acc_217_csf <- acc1 - acc3
+  diff_ppv_217_csf <- ppv1 - ppv3
+  diff_npv_217_csf <- npv1 - npv3
+  diff_sens_217_csf <- sens1 - sens3
+  
+  #217/ab42 vs. CSF
+  diff_acc_217ab42_csf <- acc2 - acc3
+  diff_ppv_217ab42_csf <- ppv2 - ppv3
+  diff_npv_217ab42_csf <- npv2 - npv3
+  diff_sens_217ab42_csf <- sens2 - sens3
+  
+  return(c(acc1, acc2, acc3, ppv1, ppv2, ppv3, npv1, npv2, npv3,#9
+           diff_acc_217_217ab42, diff_ppv_217_217ab42, diff_npv_217_217ab42,#12
+           diff_acc_217_csf,diff_ppv_217_csf,diff_npv_217_csf, #15
+           diff_acc_217ab42_csf, diff_ppv_217ab42_csf,diff_npv_217ab42_csf,#18
+           sens1, sens2, sens3, spec1, spec2, spec3, #24
+           diff_sens_217_217ab42,diff_sens_217_csf, diff_sens_217ab42_csf, #27
+           tp1, fp1, tn1, fn1, tp2, fp2, tn2, fn2, tp3, fp3, tn3, fn3)) #31 #35 #39
+}   
+
+set.seed(12345)
+boot_results <- boot(data = df.outlier, statistic = f_comp_stats, R = 2000)
+
+#Calculate pvalues 1 cutoff
+stat_indices <- list(
+  "Accuracy 217 vs. 217_AB42" = 10,
+  "PPV pval 217 vs. 217_AB42" = 11,
+  "NPV pval 217 vs. 217_AB42" = 12,
+  "Accuracy 217 vs. CSF" = 13,
+  "PPV pval 217 vs. CSF" = 14,
+  "NPV pval 217 vs. CSF" = 15,
+  "Accuracy 217ab42 vs. CSF" = 16,
+  "PPV pval 217ab42 vs. CSF" = 17,
+  "NPV pval 217ab42 vs. CSF" = 18)
+
+pvals_1cp <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Accuracy 217 vs. 217_AB42","PPV pval 217 vs. 217_AB42","NPV pval 217 vs. 217_AB42","Accuracy 217 vs. CSF","PPV pval 217 vs. CSF","NPV pval 217 vs. CSF","Accuracy 217ab42 vs. CSF","PPV pval 217ab42 vs. CSF","NPV pval 217ab42 vs. CSF"))
+
+bootstrap_replicates <- boot_results$t
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results$t0[index]
+  results_underH0_diff <- bootstrap_replicates[, index] - mean(bootstrap_replicates[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_1cp[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+##Add outcomes to dataframe (function to establish dataframe as desired)
+create_df <- function(method_name, boot_acc_index, boot_ppv_index, boot_npv_index, boot_sen_index, boot_spec_index,boot_tp_index,boot_fp_index,boot_tn_index,boot_fn_index) {
+  data.frame(
+    method = method_name,
+    accuracy = round(boot_results$t0[boot_acc_index], 3),
+    acc_ci_lower = round(quantile(boot_results$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    acc_ci_upper = round(quantile(boot_results$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    PPV = round(boot_results$t0[boot_ppv_index], 3),
+    ppv_ci_lower = round(quantile(boot_results$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    ppv_ci_upper = round(quantile(boot_results$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    NPV = round(boot_results$t0[boot_npv_index], 3),
+    npv_ci_lower = round(quantile(boot_results$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    npv_ci_upper = round(quantile(boot_results$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Sensitivity =round(boot_results$t0[boot_sen_index], 3),
+    sen_ci_lower = round(quantile(boot_results$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    sen_ci_upper = round(quantile(boot_results$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Specificity = round(boot_results$t0[boot_spec_index], 3),
+    spec_ci_lower = round(quantile(boot_results$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    spec_ci_upper = round(quantile(boot_results$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    TP = round(boot_results$t0[boot_tp_index], 0),
+    FP = round(boot_results$t0[boot_fp_index], 0),
+    TN = round(boot_results$t0[boot_tn_index], 0),
+    FN = round(boot_results$t0[boot_fn_index], 0),
+    intermediate_n_percentage = NA,
+    intermediate_n_percentage_low = NA,
+    intermediate_n_percentage_high = NA,
+    stringsAsFactors = FALSE,
+    row.names = "1 Cutpoint"
+  )
+}
+
+results_1cp_1 <- create_df(method_name = "Plasma p-tau217",boot_acc_index = 1,boot_ppv_index = 4,boot_npv_index = 7, boot_sen_index=19, boot_spec_index=22,boot_tp_index = 28, boot_fp_index=29, boot_tn_index=30, boot_fn_index=31)
+
+results_1cp_2 <- create_df(method_name = "Plasma p-tau217/AB42",boot_acc_index = 2,boot_ppv_index = 5,boot_npv_index = 8, boot_sen_index=20, boot_spec_index=23,boot_tp_index = 32, boot_fp_index=33, boot_tn_index=34, boot_fn_index=35)
+
+results_1cp_3 <- create_df(method_name = "CSF AB42/40",boot_acc_index = 3,boot_ppv_index = 6,boot_npv_index = 9, boot_sen_index=21, boot_spec_index=24,boot_tp_index = 36, boot_fp_index=37, boot_tn_index=38, boot_fn_index=39)
+merged_results_1cp <- rbind(results_1cp_1, results_1cp_2, results_1cp_3)
+
+#Step 2: establish the intermediate zone
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ptau217 = case_when(
+    ptau217_neg == 0 ~ 1,  # sens95 equals 0
+    ptau217_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ptau217ab42 = case_when(
+    ptau217ab42_neg == 0 ~ 1,  # sens95 equals 0
+    ptau217ab42_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ab4240 = case_when(
+    ab4240_pos == 0 ~ 1,  # sens95 equals 0
+    ab4240_pos2 == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+##Function to bootstrap %intermediate
+f_greyzone <- function(data, indices){
+  d <- data[indices, ]
+  
+  test_bio <- c("ptau217","PL_217_42", "csf_ab4240")
+  pred_pos <- c("ptau217_pos", "ptau217ab42_pos", "ab4240_pos")
+  pred_neg <- c("ptau217_neg", "ptau217ab42_neg", "ab4240_pos2")
+  
+  for (i in seq_along(test_bio)) {
+    greyzone_col <- paste0("greyzone_", test_bio[i])
+    neg_col <- pred_neg[i]
+    pos_col <- pred_pos[i]
+    
+    d <- d %>%
+      mutate(!!greyzone_col := case_when(
+        !!sym(neg_col) == 0 ~ 1,  # sens95 equals 0
+        !!sym(pos_col) == 1 ~ 3,  # spec95 equals 1
+        TRUE ~ 2
+      ))  
+  }
+  
+  int_n_ptau217 <- length(which(d$greyzone_ptau217 ==2))
+  int_perc_ptau217 <- round((length(which(d$greyzone_ptau217 == 2)) / nrow(d)) * 100, 3)
+  
+  int_n_ptau217ab42 <- length(which(d$greyzone_PL_217_42 ==2))
+  int_perc_ptau217ab42 <- round((length(which(d$greyzone_PL_217_42 == 2)) / nrow(d)) * 100, 3)
+  
+  int_n_csf <- length(which(d$greyzone_ab4240 ==2))
+  int_perc_csf <- round((length(which(d$greyzone_ab4240 == 2)) / nrow(d)) * 100, 3)
+  
+  #DIFFERENCES BETWEEN ASSAYS
+  diff_perc_ptau217_ptau217ab42 <- int_perc_ptau217 - int_perc_ptau217ab42
+  diff_perc_ptau217_csf <- int_perc_ptau217 - int_perc_csf
+  diff_perc_ptau217ab42_csf <- int_perc_ptau217ab42 - int_perc_csf
+  
+  return(c(int_perc_ptau217, int_perc_ptau217ab42,int_perc_csf,
+           diff_perc_ptau217_ptau217ab42, diff_perc_ptau217_csf, diff_perc_ptau217ab42_csf))
+}
+
+set.seed(12345)
+boot_results_greyzone <- boot(data = df.outlier, statistic = f_greyzone, R = 2000)
+
+##Calculate pvalue %intermediate differences
+stat_indices <- list("Int% pval p-tau217 vs. p-tau217/AB42" = 4 , 
+                     "Int% pval p-tau217 vs. CSF" = 5, 
+                     "Int% pval p-tau217/AB42 vs.CSF" = 6)
+
+pvals_intermediate <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Int% pval p-tau217 vs. p-tau217/AB42","Int% pval p-tau217 vs. CSF","Int% pval p-tau217/AB42 vs.CSF"))
+
+bootstrap_replicates_grey <- boot_results_greyzone$t
+
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results_greyzone$t0[index]
+  results_underH0_diff <- bootstrap_replicates_grey[, index] - mean(bootstrap_replicates_grey[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_intermediate[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+#Step 3: Two cutoff approach
+
+f_comp_stats_2cp <- function(data, indices) {
+  d <- as.data.frame(data[indices,])
+  
+  
+  compute_metrics <- function(d,greyzone, true, pred) {
+    
+    dx <- d %>% filter(!!sym(greyzone) != 2)
+    
+    v_tp <- sum(dx[[true]] == 1 & dx[[pred]] == 1)
+    v_fp <- sum(dx[[true]] == 0 & dx[[pred]] == 1)
+    v_tn <- sum(dx[[true]] == 0 & dx[[pred]] == 0)
+    v_fn <- sum(dx[[true]] == 1 & dx[[pred]] == 0)
+    
+    sens <- v_tp / (v_tp + v_fn)
+    spec <- v_tn / (v_tn + v_fp)
+    acc <- (v_tp + v_tn) / (v_tp + v_tn + v_fn + v_fp)
+    ppv <- cutpointr::ppv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    npv <- cutpointr::npv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    
+    return(c(acc, ppv, npv, sens, spec, v_tp, v_fp, v_tn, v_fn))#sens#spec
+  }
+  
+  greyzones <- c("greyzone_ptau217", "greyzone_ptau217ab42","greyzone_ab4240")
+  test_columns <- c("ptau217_pos","ptau217ab42_pos", "ab4240_pos")
+  true_label <- "petstat"
+  
+  results <- matrix(nrow = length(test_columns), ncol =9)
+  colnames(results) <- c("Accuracy", "PPV", "NPV", "Sensitivity", "Specificity", "TP", "FP", "TN", "FN")
+  rownames(results) <- c("ptau217", "PL_217_42", "csf_4240")
+  
+  for (i in seq_along(test_columns)) {
+    results[i, ] <- round(compute_metrics(d, greyzone = greyzones[i], true = true_label, pred = test_columns[i]),3)
+  }
+  
+  #P-tau217
+  acc1 <- results[1,1]
+  ppv1 <- results[1,2]
+  npv1 <- results[1,3]
+  sens1 <- results[1,4]
+  spec1 <- results[1,5]
+  tp1 <- results[1,6]
+  fp1 <- results[1,7]
+  tn1 <- results[1,8]
+  fn1 <- results[1,9]
+  
+  #P-tau217/AB42
+  acc2 <- results[2,1]
+  ppv2 <- results[2,2]
+  npv2 <- results[2,3]
+  sens2 <- results[2,4]
+  spec2 <- results[2,5]
+  tp2 <- results[2,6]
+  fp2 <- results[2,7]
+  tn2 <- results[2,8]
+  fn2 <- results[2,9]
+  
+  #CSF
+  acc3 <- results[3,1]
+  ppv3 <- results[3,2]
+  npv3 <- results[3,3]
+  sens3 <- results[3,4]
+  spec3 <- results[3,5]
+  tp3 <- results[3,6]
+  fp3 <- results[3,7]
+  tn3 <- results[3,8]
+  fn3 <- results[3,9]
+  
+  #p-tau217 vs. 217/ab42
+  diff_acc_217_217ab42 <- acc1 - acc2
+  diff_ppv_217_217ab42 <- ppv1 - ppv2
+  diff_npv_217_217ab42 <- npv1 - npv2
+  diff_sens_217_217ab42 <- sens1 - sens2
+  
+  #p-tau217 vs. CSF
+  diff_acc_217_csf <- acc1 - acc3
+  diff_ppv_217_csf <- ppv1 - ppv3
+  diff_npv_217_csf <- npv1 - npv3
+  diff_sens_217_csf <- sens1 - sens3
+  
+  #217/ab42 vs. CSF
+  diff_acc_217ab42_csf <- acc2 - acc3
+  diff_ppv_217ab42_csf <- ppv2 - ppv3
+  diff_npv_217ab42_csf <- npv2 - npv3
+  diff_sens_217ab42_csf <- sens2 - sens3
+  
+  return(c(acc1, acc2, acc3, ppv1, ppv2, ppv3, npv1, npv2, npv3,#9
+           diff_acc_217_217ab42, diff_ppv_217_217ab42, diff_npv_217_217ab42,#12
+           diff_acc_217_csf,diff_ppv_217_csf,diff_npv_217_csf, #15
+           diff_acc_217ab42_csf, diff_ppv_217ab42_csf,diff_npv_217ab42_csf,#18
+           sens1, sens2, sens3, spec1, spec2, spec3, #24
+           diff_sens_217_217ab42,diff_sens_217_csf, diff_sens_217ab42_csf,
+           tp1, fp1, tn1, fn1, tp2, fp2, tn2, fn2, tp3, fp3, tn3, fn3)) #31 #35 #39)) #27
+} 
+
+set.seed(12345)
+boot_results_2cp <- boot(data = df.outlier, statistic = f_comp_stats_2cp, R = 2000)
+
+##Calculate pvalues two cutoffs
+stat_indices <- list(
+  "Accuracy 217 vs. 217_AB42" = 10,
+  "PPV pval 217 vs. 217_AB42" = 11,
+  "NPV pval 217 vs. 217_AB42" = 12,
+  "Accuracy 217 vs. CSF" = 13,
+  "PPV pval 217 vs. CSF" = 14,
+  "NPV pval 217 vs. CSF" = 15,
+  "Accuracy 217ab42 vs. CSF" = 16,
+  "PPV pval 217ab42 vs. CSF" = 17,
+  "NPV pval 217ab42 vs. CSF" = 18)
+
+pvals_2cp <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Accuracy 217 vs. 217_AB42","PPV pval 217 vs. 217_AB42","NPV pval 217 vs. 217_AB42","Accuracy 217 vs. CSF","PPV pval 217 vs. CSF","NPV pval 217 vs. CSF","Accuracy 217ab42 vs. CSF","PPV pval 217ab42 vs. CSF","NPV pval 217ab42 vs. CSF"))
+
+bootstrap_replicates_2 <- boot_results_2cp$t
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results_2cp$t0[index]
+  results_underH0_diff <- bootstrap_replicates_2[, index] - mean(bootstrap_replicates_2[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_2cp[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+##Add results to dataframe
+create_df_2 <- function(method_name, boot_acc_index, boot_ppv_index, boot_npv_index,boot_grey_index,boot_sen_index, boot_spec_index,boot_tp_index,boot_fp_index,boot_tn_index,boot_fn_index) {
+  data.frame(
+    method = method_name,
+    accuracy = round(boot_results_2cp$t0[boot_acc_index], 3),
+    acc_ci_lower = round(quantile(boot_results_2cp$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    acc_ci_upper = round(quantile(boot_results_2cp$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    PPV = round(boot_results_2cp$t0[boot_ppv_index], 3),
+    ppv_ci_lower = round(quantile(boot_results_2cp$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    ppv_ci_upper = round(quantile(boot_results_2cp$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    NPV = round(boot_results_2cp$t0[boot_npv_index], 3),
+    npv_ci_lower = round(quantile(boot_results_2cp$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    npv_ci_upper = round(quantile(boot_results_2cp$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Sensitivity =round(boot_results_2cp$t0[boot_sen_index], 3),
+    sen_ci_lower = round(quantile(boot_results_2cp$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    sen_ci_upper = round(quantile(boot_results_2cp$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Specificity = round(boot_results_2cp$t0[boot_spec_index], 3),
+    spec_ci_lower = round(quantile(boot_results_2cp$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    spec_ci_upper = round(quantile(boot_results_2cp$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    TP = round(boot_results_2cp$t0[boot_tp_index], 0),
+    FP = round(boot_results_2cp$t0[boot_fp_index], 0),
+    TN = round(boot_results_2cp$t0[boot_tn_index], 0),
+    FN = round(boot_results_2cp$t0[boot_fn_index], 0),
+    intermediate_n_percentage = round(boot_results_greyzone$t0[boot_grey_index],3),
+    intermediate_n_percentage_low = round(quantile(boot_results_greyzone$t[, boot_grey_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    intermediate_n_percentage_high = round(quantile(boot_results_greyzone$t[, boot_grey_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    stringsAsFactors = FALSE,
+    row.names = "2 Cutpoints"
+  )
+}
+
+results_2cp_1 <- create_df_2(method_name = "Plasma p-tau217",boot_acc_index = 1,boot_ppv_index = 4,boot_npv_index = 7, boot_grey_index = 1, boot_sen_index=19, boot_spec_index=22,boot_tp_index = 28, boot_fp_index=29, boot_tn_index=30, boot_fn_index=31)
+
+results_2cp_2 <- create_df_2(method_name = "Plasma p-tau217/AB42",boot_acc_index = 2,boot_ppv_index = 5,boot_npv_index = 8, boot_grey_index = 2, boot_sen_index=20, boot_spec_index=23,boot_tp_index = 32, boot_fp_index=33, boot_tn_index=34, boot_fn_index=35)
+
+results_2cp_3 <- create_df_2(method_name = "CSF AB42/40",boot_acc_index = 3,boot_ppv_index = 6,boot_npv_index = 9, boot_grey_index = 3, boot_sen_index=21, boot_spec_index=24,boot_tp_index = 36, boot_fp_index=37, boot_tn_index=38, boot_fn_index=39)
+merged_results_2cp <- rbind(results_2cp_1, results_2cp_2, results_2cp_3)
+
+#Step 4: Bind all datasets together
+merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
+merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints","2 Cutpoints")
+openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_outliers.xlsx", rowNames =T)
+
+pvalues_all <- rbind(
+  pvals_1cp,
+  pvals_intermediate,
+  pvals_2cp
+)
+openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_pvals_outliers.xlsx", rowNames =T)
+
+
+#Step 5: Create dataframe for manuscript tables
+table_df <- data.frame(
+  Measure = merged_comps_bf$method,
+  Accuracy = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$accuracy, merged_comps_bf$acc_ci_lower, merged_comps_bf$acc_ci_upper),
+  PPV = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$PPV, merged_comps_bf$ppv_ci_lower, merged_comps_bf$ppv_ci_upper),
+  NPV = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$NPV, merged_comps_bf$npv_ci_lower, merged_comps_bf$npv_ci_upper),
+  Gre= sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$intermediate_n_percentage, merged_comps_bf$intermediate_n_percentage_low, merged_comps_bf$intermediate_n_percentage_high),
+  Sensitivity = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$Sensitivity, merged_comps_bf$sen_ci_lower, merged_comps_bf$sen_ci_upper),
+  Specificity =sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$Specificity, merged_comps_bf$spec_ci_lower, merged_comps_bf$spec_ci_upper))
+
+openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_outliers_table.xlsx", rowNames =T)
+
+
+
+```
+
+### 2B. BioFINDER-Primary care
+
+```{r set up data BFPC}
+#| echo: false
+df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/LP_PlasmaCSF_300625.xlsx")
+
+#change names etc.
+names(df)[names(df) == "Plasma_Ptau217P_pgmL_Lumi"] <- "ptau217"
+df$ptau217 <- as.numeric(as.character(df$ptau217))
+names(df)[names(df) == "csf_clinical_routine_Abeta42_40_ratio_x10"] <- "csf_4240"
+df$csf_4240 <- as.numeric(as.character(df$csf_4240))
+df$csf_4240 <- df$csf_4240/10
+#PB transformation for AB42
+df$Plasma_AB142_pgmL_Lumi_c <- 1.119 + 1.114*df$Plasma_AB142_pgmL_Lumi
+df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi_c)
+
+#select dataset
+df.ad <- df %>% filter(df$Study %in% "ADetect")
+df <- df.ad #124
+df <- df %>% select(VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi)
+df <- df %>% drop_na(csf_4240,ptau217)
+
+```
+
+### Analyses VR Outliers BFPC
+
+```{r statistical analyses, outliers VR outcome}
+##AUC differences with DeLong
+
+df$petstat <- as.factor(df$VR_overall)
+outliervalue_ptau217_up <- mean(df$ptau217) + 3*sd(df$ptau217)
+#outliervalue_ptau217_low <- mean(df$ptau217) - 3*sd(df$ptau217) #negative
+outliervalue_ptau217ab42_up <- mean(df$PL_217_42) + 3*sd(df$PL_217_42)
+outliervalue_csf_up <- mean(df$csf_4240) + 3*sd(df$csf_4240)
+df.outlier <- df %>% filter(ptau217 < outliervalue_ptau217_up & PL_217_42 < outliervalue_ptau217ab42_up & csf_4240 < outliervalue_csf_up)
+
+
+biomarkers <- c("ptau217","PL_217_42", "csf_4240")
+results_delong <- list()
+index <- 1
+
+for (i in seq_along(biomarkers)){
+  for (j in seq_along(biomarkers)){ 
+    if (i < j) {
+      predictor1 <- biomarkers[i]
+      predictor2 <- biomarkers[j]
+ 
+      formula1 <- as.formula(paste("petstat~",predictor1, collapse=""))
+      formula2 <- as.formula(paste("petstat~",predictor2, collapse=""))
+      
+      roc_curve1 <- pROC::roc(formula1, data=df.outlier, quiet=T)
+      roc_curve2 <- pROC::roc(formula2, data=df.outlier,quiet=T)
+      
+      res <- roc.test(roc_curve1, roc_curve2, method = "delong")
+      
+      long <- data.frame(
+        comp = paste(predictor1, predictor2, sep=" vs. "),
+        auc1a = round(roc_curve1$auc,3),
+        auc2a = round(roc_curve2$auc,3),
+        pval = round(res$p.value,3),
+        auc1_ci_low = round(ci.auc(roc_curve1)[1],3),
+        auc1_ci_high =round(ci.auc(roc_curve1)[3],3),
+        auc2_ci_low =round(ci.auc(roc_curve2)[1],3),
+        auc2_ci_high = round(ci.auc(roc_curve2)[3],3)
+        )
+      
+      results_delong[[length(results_delong) + 1]] <- long
+      index <- index + 1
+    }
+  }
+}
+
+results_delong <- do.call(rbind.data.frame, results_delong)
+results_delong$padj <- round(p.adjust(results_delong$pval, method = "fdr"),3)
+results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], results_delong$auc2a[3])
+results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
+results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
+openxlsx::write.xlsx(results_delong,
+                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/DELONG_VR_outliers.xlsx")
+
+
+df.outlier$petstat <- as.factor(df.outlier$VR_overall)
+df.outlier <- df.outlier %>% drop_na(csf_4240)
+
+df.outlier$ptau217_pos <- ifelse(df.outlier$ptau217 >= 0.23211, 1, 0) 
+df.outlier$ptau217_neg <- ifelse(df.outlier$ptau217 <= 0.08681, 0, 1)
+
+df.outlier$ptau217ab42_pos <- ifelse(df.outlier$PL_217_42 >= 0.00738, 1, 0) 
+df.outlier$ptau217ab42_neg <- ifelse(df.outlier$PL_217_42 <= 0.00370, 0, 1)
+
+df.outlier$ab4240_pos <- ifelse(df.outlier$csf_4240 <= 0.072, 1, 0)
+df.outlier$ab4240_pos2 <- ifelse(df.outlier$csf_4240 <= 0.058, 1, 0)
+
+#Step 1: 1 cutoff
+
+##Calculate Accuracy, PPV, NPV and 95% CIs
+
+f_comp_stats <- function(data, indices) {
+  d <- as.data.frame(data[indices,])
+  
+  ##threshold calculation related to d, and then assign binary status based on that threshold
+  compute_metrics <- function(true, pred) {
+    
+    ##threshold calculation and 
+    
+    v_tp <- sum(true == 1 & pred == 1)
+    v_fp <- sum(true == 0 & pred == 1)
+    v_tn <- sum(true == 0 & pred == 0)
+    v_fn <- sum(true == 1 & pred == 0)
+    
+    sens <- v_tp / (v_tp + v_fn)
+    spec <- v_tn / (v_tn + v_fp)
+    acc <- (v_tp + v_tn) / (v_tp + v_tn + v_fn + v_fp)
+    ppv <- cutpointr::ppv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    npv <- cutpointr::npv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    
+    return(c(acc, ppv, npv, sens, spec, v_tp, v_fp, v_tn, v_fn))#sens#spec
+  }
+  
+  test_columns <- c("ptau217_pos","ptau217ab42_pos", "ab4240_pos")
+  results <- matrix(nrow = length(test_columns), ncol = 9)
+  colnames(results) <- c("Accuracy", "PPV", "NPV", "Sensitivity", "Specificity", "TP", "FP", "TN", "FN")
+  rownames(results) <- c("ptau217", "PL_217_42", "csf_4240")
+  
+  for (i in seq_along(test_columns)) {
+    results[i, ] <- round(compute_metrics(d$petstat, d[[test_columns[i]]]),3)
+  }
+  
+  #Assign p-tau217 metrics
+  acc1 <- results[1,1]
+  ppv1 <- results[1,2]
+  npv1 <- results[1,3]
+  sens1 <- results[1,4]
+  spec1 <- results[1,5]
+  tp1 <- results[1,6]
+  fp1 <- results[1,7]
+  tn1 <- results[1,8]
+  fn1 <- results[1,9]
+  
+  #Assign p-tau217/AB42 metrics
+  acc2 <- results[2,1]
+  ppv2 <- results[2,2]
+  npv2 <- results[2,3]
+  sens2 <- results[2,4]
+  spec2 <- results[2,5]
+  tp2 <- results[2,6]
+  fp2 <- results[2,7]
+  tn2 <- results[2,8]
+  fn2 <- results[2,9]
+  
+  #Assign CSF metrics
+  acc3 <- results[3,1]
+  ppv3 <- results[3,2]
+  npv3 <- results[3,3]
+  sens3 <- results[3,4]
+  spec3 <- results[3,5]
+  tp3 <- results[3,6]
+  fp3 <- results[3,7]
+  tn3 <- results[3,8]
+  fn3 <- results[3,9]
+  
+  #p-tau217 vs. 217/ab42
+  diff_acc_217_217ab42 <- acc1 - acc2
+  diff_ppv_217_217ab42 <- ppv1 - ppv2
+  diff_npv_217_217ab42 <- npv1 - npv2
+  diff_sens_217_217ab42 <- sens1 - sens2
+  
+  #p-tau217 vs. CSF
+  diff_acc_217_csf <- acc1 - acc3
+  diff_ppv_217_csf <- ppv1 - ppv3
+  diff_npv_217_csf <- npv1 - npv3
+  diff_sens_217_csf <- sens1 - sens3
+  
+  #217/ab42 vs. CSF
+  diff_acc_217ab42_csf <- acc2 - acc3
+  diff_ppv_217ab42_csf <- ppv2 - ppv3
+  diff_npv_217ab42_csf <- npv2 - npv3
+  diff_sens_217ab42_csf <- sens2 - sens3
+  
+  return(c(acc1, acc2, acc3, ppv1, ppv2, ppv3, npv1, npv2, npv3,#9
+           diff_acc_217_217ab42, diff_ppv_217_217ab42, diff_npv_217_217ab42,#12
+           diff_acc_217_csf,diff_ppv_217_csf,diff_npv_217_csf, #15
+           diff_acc_217ab42_csf, diff_ppv_217ab42_csf,diff_npv_217ab42_csf,#18
+           sens1, sens2, sens3, spec1, spec2, spec3, #24
+           diff_sens_217_217ab42,diff_sens_217_csf, diff_sens_217ab42_csf, #27
+           tp1, fp1, tn1, fn1, tp2, fp2, tn2, fn2, tp3, fp3, tn3, fn3)) #31 #35 #39
+}   
+
+set.seed(12345)
+boot_results <- boot(data = df.outlier, statistic = f_comp_stats, R = 2000)
+
+#Calculate pvalues 1 cutoff
+stat_indices <- list(
+  "Accuracy 217 vs. 217_AB42" = 10,
+  "PPV pval 217 vs. 217_AB42" = 11,
+  "NPV pval 217 vs. 217_AB42" = 12,
+  "Accuracy 217 vs. CSF" = 13,
+  "PPV pval 217 vs. CSF" = 14,
+  "NPV pval 217 vs. CSF" = 15,
+  "Accuracy 217ab42 vs. CSF" = 16,
+  "PPV pval 217ab42 vs. CSF" = 17,
+  "NPV pval 217ab42 vs. CSF" = 18)
+
+pvals_1cp <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Accuracy 217 vs. 217_AB42","PPV pval 217 vs. 217_AB42","NPV pval 217 vs. 217_AB42","Accuracy 217 vs. CSF","PPV pval 217 vs. CSF","NPV pval 217 vs. CSF","Accuracy 217ab42 vs. CSF","PPV pval 217ab42 vs. CSF","NPV pval 217ab42 vs. CSF"))
+
+bootstrap_replicates <- boot_results$t
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results$t0[index]
+  results_underH0_diff <- bootstrap_replicates[, index] - mean(bootstrap_replicates[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_1cp[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+##Add outcomes to dataframe (function to establish dataframe as desired)
+create_df <- function(method_name, boot_acc_index, boot_ppv_index, boot_npv_index, boot_sen_index, boot_spec_index,boot_tp_index,boot_fp_index,boot_tn_index,boot_fn_index) {
+  data.frame(
+    method = method_name,
+    accuracy = round(boot_results$t0[boot_acc_index], 3),
+    acc_ci_lower = round(quantile(boot_results$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    acc_ci_upper = round(quantile(boot_results$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    PPV = round(boot_results$t0[boot_ppv_index], 3),
+    ppv_ci_lower = round(quantile(boot_results$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    ppv_ci_upper = round(quantile(boot_results$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    NPV = round(boot_results$t0[boot_npv_index], 3),
+    npv_ci_lower = round(quantile(boot_results$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    npv_ci_upper = round(quantile(boot_results$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Sensitivity =round(boot_results$t0[boot_sen_index], 3),
+    sen_ci_lower = round(quantile(boot_results$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    sen_ci_upper = round(quantile(boot_results$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Specificity = round(boot_results$t0[boot_spec_index], 3),
+    spec_ci_lower = round(quantile(boot_results$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    spec_ci_upper = round(quantile(boot_results$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    TP = round(boot_results$t0[boot_tp_index], 0),
+    FP = round(boot_results$t0[boot_fp_index], 0),
+    TN = round(boot_results$t0[boot_tn_index], 0),
+    FN = round(boot_results$t0[boot_fn_index], 0),
+    intermediate_n_percentage = NA,
+    intermediate_n_percentage_low = NA,
+    intermediate_n_percentage_high = NA,
+    stringsAsFactors = FALSE,
+    row.names = "1 Cutpoint"
+  )
+}
+
+results_1cp_1 <- create_df(method_name = "Plasma p-tau217",boot_acc_index = 1,boot_ppv_index = 4,boot_npv_index = 7, boot_sen_index=19, boot_spec_index=22,boot_tp_index = 28, boot_fp_index=29, boot_tn_index=30, boot_fn_index=31)
+
+results_1cp_2 <- create_df(method_name = "Plasma p-tau217/AB42",boot_acc_index = 2,boot_ppv_index = 5,boot_npv_index = 8, boot_sen_index=20, boot_spec_index=23,boot_tp_index = 32, boot_fp_index=33, boot_tn_index=34, boot_fn_index=35)
+
+results_1cp_3 <- create_df(method_name = "CSF AB42/40",boot_acc_index = 3,boot_ppv_index = 6,boot_npv_index = 9, boot_sen_index=21, boot_spec_index=24,boot_tp_index = 36, boot_fp_index=37, boot_tn_index=38, boot_fn_index=39)
+merged_results_1cp <- rbind(results_1cp_1, results_1cp_2, results_1cp_3)
+
+#Step 2: establish the intermediate zone
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ptau217 = case_when(
+    ptau217_neg == 0 ~ 1,  # sens95 equals 0
+    ptau217_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ptau217ab42 = case_when(
+    ptau217ab42_neg == 0 ~ 1,  # sens95 equals 0
+    ptau217ab42_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ab4240 = case_when(
+    ab4240_pos == 0 ~ 1,  # sens95 equals 0
+    ab4240_pos2 == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+##Function to bootstrap %intermediate
+f_greyzone <- function(data, indices){
+  d <- data[indices, ]
+  
+  test_bio <- c("ptau217","PL_217_42", "csf_ab4240")
+  pred_pos <- c("ptau217_pos", "ptau217ab42_pos", "ab4240_pos")
+  pred_neg <- c("ptau217_neg", "ptau217ab42_neg", "ab4240_pos2")
+  
+  for (i in seq_along(test_bio)) {
+    greyzone_col <- paste0("greyzone_", test_bio[i])
+    neg_col <- pred_neg[i]
+    pos_col <- pred_pos[i]
+    
+    d <- d %>%
+      mutate(!!greyzone_col := case_when(
+        !!sym(neg_col) == 0 ~ 1,  # sens95 equals 0
+        !!sym(pos_col) == 1 ~ 3,  # spec95 equals 1
+        TRUE ~ 2
+      ))  
+  }
+  
+  int_n_ptau217 <- length(which(d$greyzone_ptau217 ==2))
+  int_perc_ptau217 <- round((length(which(d$greyzone_ptau217 == 2)) / nrow(d)) * 100, 3)
+  
+  int_n_ptau217ab42 <- length(which(d$greyzone_PL_217_42 ==2))
+  int_perc_ptau217ab42 <- round((length(which(d$greyzone_PL_217_42 == 2)) / nrow(d)) * 100, 3)
+  
+  int_n_csf <- length(which(d$greyzone_ab4240 ==2))
+  int_perc_csf <- round((length(which(d$greyzone_ab4240 == 2)) / nrow(d)) * 100, 3)
+  
+  #DIFFERENCES BETWEEN ASSAYS
+  diff_perc_ptau217_ptau217ab42 <- int_perc_ptau217 - int_perc_ptau217ab42
+  diff_perc_ptau217_csf <- int_perc_ptau217 - int_perc_csf
+  diff_perc_ptau217ab42_csf <- int_perc_ptau217ab42 - int_perc_csf
+  
+  return(c(int_perc_ptau217, int_perc_ptau217ab42,int_perc_csf,
+           diff_perc_ptau217_ptau217ab42, diff_perc_ptau217_csf, diff_perc_ptau217ab42_csf))
+}
+
+set.seed(12345)
+boot_results_greyzone <- boot(data = df.outlier, statistic = f_greyzone, R = 2000)
+
+##Calculate pvalue %intermediate differences
+stat_indices <- list("Int% pval p-tau217 vs. p-tau217/AB42" = 4 , 
+                     "Int% pval p-tau217 vs. CSF" = 5, 
+                     "Int% pval p-tau217/AB42 vs.CSF" = 6)
+
+pvals_intermediate <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Int% pval p-tau217 vs. p-tau217/AB42","Int% pval p-tau217 vs. CSF","Int% pval p-tau217/AB42 vs.CSF"))
+
+bootstrap_replicates_grey <- boot_results_greyzone$t
+
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results_greyzone$t0[index]
+  results_underH0_diff <- bootstrap_replicates_grey[, index] - mean(bootstrap_replicates_grey[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_intermediate[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+#Step 3: Two cutoff approach
+
+f_comp_stats_2cp <- function(data, indices) {
+  d <- as.data.frame(data[indices,])
+  
+  
+  compute_metrics <- function(d,greyzone, true, pred) {
+    
+    dx <- d %>% filter(!!sym(greyzone) != 2)
+    
+    v_tp <- sum(dx[[true]] == 1 & dx[[pred]] == 1)
+    v_fp <- sum(dx[[true]] == 0 & dx[[pred]] == 1)
+    v_tn <- sum(dx[[true]] == 0 & dx[[pred]] == 0)
+    v_fn <- sum(dx[[true]] == 1 & dx[[pred]] == 0)
+    
+    sens <- v_tp / (v_tp + v_fn)
+    spec <- v_tn / (v_tn + v_fp)
+    acc <- (v_tp + v_tn) / (v_tp + v_tn + v_fn + v_fp)
+    ppv <- cutpointr::ppv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    npv <- cutpointr::npv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    
+    return(c(acc, ppv, npv, sens, spec, v_tp, v_fp, v_tn, v_fn))#sens#spec
+  }
+  
+  greyzones <- c("greyzone_ptau217", "greyzone_ptau217ab42","greyzone_ab4240")
+  test_columns <- c("ptau217_pos","ptau217ab42_pos", "ab4240_pos")
+  true_label <- "petstat"
+  
+  results <- matrix(nrow = length(test_columns), ncol =9)
+  colnames(results) <- c("Accuracy", "PPV", "NPV", "Sensitivity", "Specificity", "TP", "FP", "TN", "FN")
+  rownames(results) <- c("ptau217", "PL_217_42", "csf_4240")
+  
+  for (i in seq_along(test_columns)) {
+    results[i, ] <- round(compute_metrics(d, greyzone = greyzones[i], true = true_label, pred = test_columns[i]),3)
+  }
+  
+  #P-tau217
+  acc1 <- results[1,1]
+  ppv1 <- results[1,2]
+  npv1 <- results[1,3]
+  sens1 <- results[1,4]
+  spec1 <- results[1,5]
+  tp1 <- results[1,6]
+  fp1 <- results[1,7]
+  tn1 <- results[1,8]
+  fn1 <- results[1,9]
+  
+  #P-tau217/AB42
+  acc2 <- results[2,1]
+  ppv2 <- results[2,2]
+  npv2 <- results[2,3]
+  sens2 <- results[2,4]
+  spec2 <- results[2,5]
+  tp2 <- results[2,6]
+  fp2 <- results[2,7]
+  tn2 <- results[2,8]
+  fn2 <- results[2,9]
+  
+  #CSF
+  acc3 <- results[3,1]
+  ppv3 <- results[3,2]
+  npv3 <- results[3,3]
+  sens3 <- results[3,4]
+  spec3 <- results[3,5]
+  tp3 <- results[3,6]
+  fp3 <- results[3,7]
+  tn3 <- results[3,8]
+  fn3 <- results[3,9]
+  
+  #p-tau217 vs. 217/ab42
+  diff_acc_217_217ab42 <- acc1 - acc2
+  diff_ppv_217_217ab42 <- ppv1 - ppv2
+  diff_npv_217_217ab42 <- npv1 - npv2
+  diff_sens_217_217ab42 <- sens1 - sens2
+  
+  #p-tau217 vs. CSF
+  diff_acc_217_csf <- acc1 - acc3
+  diff_ppv_217_csf <- ppv1 - ppv3
+  diff_npv_217_csf <- npv1 - npv3
+  diff_sens_217_csf <- sens1 - sens3
+  
+  #217/ab42 vs. CSF
+  diff_acc_217ab42_csf <- acc2 - acc3
+  diff_ppv_217ab42_csf <- ppv2 - ppv3
+  diff_npv_217ab42_csf <- npv2 - npv3
+  diff_sens_217ab42_csf <- sens2 - sens3
+  
+  return(c(acc1, acc2, acc3, ppv1, ppv2, ppv3, npv1, npv2, npv3,#9
+           diff_acc_217_217ab42, diff_ppv_217_217ab42, diff_npv_217_217ab42,#12
+           diff_acc_217_csf,diff_ppv_217_csf,diff_npv_217_csf, #15
+           diff_acc_217ab42_csf, diff_ppv_217ab42_csf,diff_npv_217ab42_csf,#18
+           sens1, sens2, sens3, spec1, spec2, spec3, #24
+           diff_sens_217_217ab42,diff_sens_217_csf, diff_sens_217ab42_csf,
+           tp1, fp1, tn1, fn1, tp2, fp2, tn2, fn2, tp3, fp3, tn3, fn3)) #31 #35 #39)) #27
+} 
+
+set.seed(12345)
+boot_results_2cp <- boot(data = df.outlier, statistic = f_comp_stats_2cp, R = 2000)
+
+##Calculate pvalues two cutoffs
+stat_indices <- list(
+  "Accuracy 217 vs. 217_AB42" = 10,
+  "PPV pval 217 vs. 217_AB42" = 11,
+  "NPV pval 217 vs. 217_AB42" = 12,
+  "Accuracy 217 vs. CSF" = 13,
+  "PPV pval 217 vs. CSF" = 14,
+  "NPV pval 217 vs. CSF" = 15,
+  "Accuracy 217ab42 vs. CSF" = 16,
+  "PPV pval 217ab42 vs. CSF" = 17,
+  "NPV pval 217ab42 vs. CSF" = 18)
+
+pvals_2cp <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Accuracy 217 vs. 217_AB42","PPV pval 217 vs. 217_AB42","NPV pval 217 vs. 217_AB42","Accuracy 217 vs. CSF","PPV pval 217 vs. CSF","NPV pval 217 vs. CSF","Accuracy 217ab42 vs. CSF","PPV pval 217ab42 vs. CSF","NPV pval 217ab42 vs. CSF"))
+
+bootstrap_replicates_2 <- boot_results_2cp$t
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results_2cp$t0[index]
+  results_underH0_diff <- bootstrap_replicates_2[, index] - mean(bootstrap_replicates_2[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_2cp[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+##Add results to dataframe
+create_df_2 <- function(method_name, boot_acc_index, boot_ppv_index, boot_npv_index,boot_grey_index,boot_sen_index, boot_spec_index,boot_tp_index,boot_fp_index,boot_tn_index,boot_fn_index) {
+  data.frame(
+    method = method_name,
+    accuracy = round(boot_results_2cp$t0[boot_acc_index], 3),
+    acc_ci_lower = round(quantile(boot_results_2cp$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    acc_ci_upper = round(quantile(boot_results_2cp$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    PPV = round(boot_results_2cp$t0[boot_ppv_index], 3),
+    ppv_ci_lower = round(quantile(boot_results_2cp$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    ppv_ci_upper = round(quantile(boot_results_2cp$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    NPV = round(boot_results_2cp$t0[boot_npv_index], 3),
+    npv_ci_lower = round(quantile(boot_results_2cp$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    npv_ci_upper = round(quantile(boot_results_2cp$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Sensitivity =round(boot_results_2cp$t0[boot_sen_index], 3),
+    sen_ci_lower = round(quantile(boot_results_2cp$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    sen_ci_upper = round(quantile(boot_results_2cp$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Specificity = round(boot_results_2cp$t0[boot_spec_index], 3),
+    spec_ci_lower = round(quantile(boot_results_2cp$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    spec_ci_upper = round(quantile(boot_results_2cp$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    TP = round(boot_results_2cp$t0[boot_tp_index], 0),
+    FP = round(boot_results_2cp$t0[boot_fp_index], 0),
+    TN = round(boot_results_2cp$t0[boot_tn_index], 0),
+    FN = round(boot_results_2cp$t0[boot_fn_index], 0),
+    intermediate_n_percentage = round(boot_results_greyzone$t0[boot_grey_index],3),
+    intermediate_n_percentage_low = round(quantile(boot_results_greyzone$t[, boot_grey_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    intermediate_n_percentage_high = round(quantile(boot_results_greyzone$t[, boot_grey_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    stringsAsFactors = FALSE,
+    row.names = "2 Cutpoints"
+  )
+}
+
+results_2cp_1 <- create_df_2(method_name = "Plasma p-tau217",boot_acc_index = 1,boot_ppv_index = 4,boot_npv_index = 7, boot_grey_index = 1, boot_sen_index=19, boot_spec_index=22,boot_tp_index = 28, boot_fp_index=29, boot_tn_index=30, boot_fn_index=31)
+
+results_2cp_2 <- create_df_2(method_name = "Plasma p-tau217/AB42",boot_acc_index = 2,boot_ppv_index = 5,boot_npv_index = 8, boot_grey_index = 2, boot_sen_index=20, boot_spec_index=23,boot_tp_index = 32, boot_fp_index=33, boot_tn_index=34, boot_fn_index=35)
+
+results_2cp_3 <- create_df_2(method_name = "CSF AB42/40",boot_acc_index = 3,boot_ppv_index = 6,boot_npv_index = 9, boot_grey_index = 3, boot_sen_index=21, boot_spec_index=24,boot_tp_index = 36, boot_fp_index=37, boot_tn_index=38, boot_fn_index=39)
+merged_results_2cp <- rbind(results_2cp_1, results_2cp_2, results_2cp_3)
+
+#Step 4: Bind all datasets together
+merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
+merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints","2 Cutpoints")
+openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_outliers.xlsx", rowNames =T)
+
+pvalues_all <- rbind(
+  pvals_1cp,
+  pvals_intermediate,
+  pvals_2cp
+)
+openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_pvals_outliers.xlsx", rowNames =T)
+
+
+#Step 5: Create dataframe for manuscript tables
+table_df <- data.frame(
+  Measure = merged_comps_bf$method,
+  Accuracy = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$accuracy, merged_comps_bf$acc_ci_lower, merged_comps_bf$acc_ci_upper),
+  PPV = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$PPV, merged_comps_bf$ppv_ci_lower, merged_comps_bf$ppv_ci_upper),
+  NPV = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$NPV, merged_comps_bf$npv_ci_lower, merged_comps_bf$npv_ci_upper),
+  Gre= sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$intermediate_n_percentage, merged_comps_bf$intermediate_n_percentage_low, merged_comps_bf$intermediate_n_percentage_high),
+  Sensitivity = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$Sensitivity, merged_comps_bf$sen_ci_lower, merged_comps_bf$sen_ci_upper),
+  Specificity =sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$Specificity, merged_comps_bf$spec_ci_lower, merged_comps_bf$spec_ci_upper))
+
+openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_outliers_table.xlsx", rowNames =T)
+
+```
+
+### 2C. ADNI
+
+```{r set up data}
+#| echo: false
+
+df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/ADNI_VR2.xlsx")
+df$PL_217_42 <- (df$ptau217)/(df$PL_AB42)
+df$CSF_18142 <- ifelse(df$ABETA42 > 1700, (df$PTAU_csf)/1700, (df$PTAU_csf)/df$ABETA42)
+df$cog_stat <- ifelse(df$CDRSB_bl >= 0.5, 1, 0)
+df <- df %>% filter(cog_stat == 1) 
+```
+
+### Analyses VR Outliers ADNI
+
+```{r statistical analyses, outliers VR outcome}
+df$petstat <- as.factor(df$VR)
+outliervalue_ptau217_up <- mean(df$ptau217) + 3*sd(df$ptau217)
+#outliervalue_ptau217_low <- mean(df$ptau217) - 3*sd(df$ptau217) #negative
+outliervalue_ptau217ab42_up <- mean(df$PL_217_42) + 3*sd(df$PL_217_42)
+outliervalue_csf_up <- mean(df$CSF_18142) + 3*sd(df$CSF_18142)
+df.outlier <- df %>% filter(ptau217 < outliervalue_ptau217_up & PL_217_42 < outliervalue_ptau217ab42_up & CSF_18142 < outliervalue_csf_up)
+
+
+
+biomarkers <- c("ptau217","PL_217_42", "CSF_18142")
+results_delong <- list()
+index <- 1
+
+for (i in seq_along(biomarkers)){
+  for (j in seq_along(biomarkers)){ 
+    if (i < j) {
+      predictor1 <- biomarkers[i]
+      predictor2 <- biomarkers[j]
+ 
+      formula1 <- as.formula(paste("petstat~",predictor1, collapse=""))
+      formula2 <- as.formula(paste("petstat~",predictor2, collapse=""))
+      
+      roc_curve1 <- pROC::roc(formula1, data=df.outlier, quiet=T)
+      roc_curve2 <- pROC::roc(formula2, data=df.outlier,quiet=T)
+      
+      res <- roc.test(roc_curve1, roc_curve2, method = "delong")
+      
+      long <- data.frame(
+        comp = paste(predictor1, predictor2, sep=" vs. "),
+        auc1a = round(roc_curve1$auc,3),
+        auc2a = round(roc_curve2$auc,3),
+        pval = round(res$p.value,3),
+        auc1_ci_low = round(ci.auc(roc_curve1)[1],3),
+        auc1_ci_high =round(ci.auc(roc_curve1)[3],3),
+        auc2_ci_low =round(ci.auc(roc_curve2)[1],3),
+        auc2_ci_high = round(ci.auc(roc_curve2)[3],3)
+        )
+      
+      results_delong[[length(results_delong) + 1]] <- long
+      index <- index + 1
+    }
+  }
+}
+
+results_delong <- do.call(rbind.data.frame, results_delong)
+results_delong$padj <- round(p.adjust(results_delong$pval, method = "fdr"),3)
+results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], results_delong$auc2a[3])
+results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
+results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
+openxlsx::write.xlsx(results_delong,
+                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/DELONG_VR_outliers.xlsx")
+
+
+df.outlier$petstat <- as.factor(df.outlier$VR)
+
+df.outlier$ptau217_pos <- ifelse(df.outlier$ptau217 >= 0.23211, 1, 0) 
+df.outlier$ptau217_neg <- ifelse(df.outlier$ptau217 <= 0.08681, 0, 1)
+
+df.outlier$ptau217ab42_pos <- ifelse(df.outlier$PL_217_42 >= 0.00738, 1, 0) 
+df.outlier$ptau217ab42_neg <- ifelse(df.outlier$PL_217_42 <= 0.00370, 0, 1)
+
+df.outlier$csf_pos <- ifelse(df.outlier$CSF_18142 > 0.28, 1, 0)
+df.outlier$csf_neg <- ifelse(df.outlier$CSF_18142 < 0.22, 0, 1)
+
+#Step 1: 1 cutoff
+
+##Calculate Accuracy, PPV, NPV and 95% CIs
+
+f_comp_stats <- function(data, indices) {
+  d <- as.data.frame(data[indices,])
+  
+  ##threshold calculation related to d, and then assign binary status based on that threshold
+  compute_metrics <- function(true, pred) {
+    
+    ##threshold calculation and 
+    
+    v_tp <- sum(true == 1 & pred == 1)
+    v_fp <- sum(true == 0 & pred == 1)
+    v_tn <- sum(true == 0 & pred == 0)
+    v_fn <- sum(true == 1 & pred == 0)
+    
+    sens <- v_tp / (v_tp + v_fn)
+    spec <- v_tn / (v_tn + v_fp)
+    acc <- (v_tp + v_tn) / (v_tp + v_tn + v_fn + v_fp)
+    ppv <- cutpointr::ppv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    npv <- cutpointr::npv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    
+    return(c(acc, ppv, npv, sens, spec, v_tp, v_fp, v_tn, v_fn))#sens#spec
+  }
+  
+  test_columns <- c("ptau217_pos","ptau217ab42_pos", "csf_pos")
+  results <- matrix(nrow = length(test_columns), ncol = 9)
+  colnames(results) <- c("Accuracy", "PPV", "NPV", "Sensitivity", "Specificity", "TP", "FP", "TN", "FN")
+  rownames(results) <- c("ptau217", "PL_217_42", "CSF_18142")
+  
+  for (i in seq_along(test_columns)) {
+    results[i, ] <- round(compute_metrics(d$petstat, d[[test_columns[i]]]),3)
+  }
+  
+  #Assign p-tau217 metrics
+  acc1 <- results[1,1]
+  ppv1 <- results[1,2]
+  npv1 <- results[1,3]
+  sens1 <- results[1,4]
+  spec1 <- results[1,5]
+  tp1 <- results[1,6]
+  fp1 <- results[1,7]
+  tn1 <- results[1,8]
+  fn1 <- results[1,9]
+  
+  #Assign p-tau217/AB42 metrics
+  acc2 <- results[2,1]
+  ppv2 <- results[2,2]
+  npv2 <- results[2,3]
+  sens2 <- results[2,4]
+  spec2 <- results[2,5]
+  tp2 <- results[2,6]
+  fp2 <- results[2,7]
+  tn2 <- results[2,8]
+  fn2 <- results[2,9]
+  
+  #Assign CSF metrics
+  acc3 <- results[3,1]
+  ppv3 <- results[3,2]
+  npv3 <- results[3,3]
+  sens3 <- results[3,4]
+  spec3 <- results[3,5]
+  tp3 <- results[3,6]
+  fp3 <- results[3,7]
+  tn3 <- results[3,8]
+  fn3 <- results[3,9]
+  
+  #p-tau217 vs. 217/ab42
+  diff_acc_217_217ab42 <- acc1 - acc2
+  diff_ppv_217_217ab42 <- ppv1 - ppv2
+  diff_npv_217_217ab42 <- npv1 - npv2
+  diff_sens_217_217ab42 <- sens1 - sens2
+  
+  #p-tau217 vs. CSF
+  diff_acc_217_csf <- acc1 - acc3
+  diff_ppv_217_csf <- ppv1 - ppv3
+  diff_npv_217_csf <- npv1 - npv3
+  diff_sens_217_csf <- sens1 - sens3
+  
+  #217/ab42 vs. CSF
+  diff_acc_217ab42_csf <- acc2 - acc3
+  diff_ppv_217ab42_csf <- ppv2 - ppv3
+  diff_npv_217ab42_csf <- npv2 - npv3
+  diff_sens_217ab42_csf <- sens2 - sens3
+  
+  return(c(acc1, acc2, acc3, ppv1, ppv2, ppv3, npv1, npv2, npv3,#9
+           diff_acc_217_217ab42, diff_ppv_217_217ab42, diff_npv_217_217ab42,#12
+           diff_acc_217_csf,diff_ppv_217_csf,diff_npv_217_csf, #15
+           diff_acc_217ab42_csf, diff_ppv_217ab42_csf,diff_npv_217ab42_csf,#18
+           sens1, sens2, sens3, spec1, spec2, spec3, #24
+           diff_sens_217_217ab42,diff_sens_217_csf, diff_sens_217ab42_csf, #27
+           tp1, fp1, tn1, fn1, tp2, fp2, tn2, fn2, tp3, fp3, tn3, fn3)) #31 #35 #39
+}   
+
+set.seed(12345)
+boot_results <- boot(data = df.outlier, statistic = f_comp_stats, R = 2000)
+
+#Calculate pvalues 1 cutoff
+stat_indices <- list(
+  "Accuracy 217 vs. 217_AB42" = 10,
+  "PPV pval 217 vs. 217_AB42" = 11,
+  "NPV pval 217 vs. 217_AB42" = 12,
+  "Accuracy 217 vs. CSF" = 13,
+  "PPV pval 217 vs. CSF" = 14,
+  "NPV pval 217 vs. CSF" = 15,
+  "Accuracy 217ab42 vs. CSF" = 16,
+  "PPV pval 217ab42 vs. CSF" = 17,
+  "NPV pval 217ab42 vs. CSF" = 18)
+
+pvals_1cp <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Accuracy 217 vs. 217_AB42","PPV pval 217 vs. 217_AB42","NPV pval 217 vs. 217_AB42","Accuracy 217 vs. CSF","PPV pval 217 vs. CSF","NPV pval 217 vs. CSF","Accuracy 217ab42 vs. CSF","PPV pval 217ab42 vs. CSF","NPV pval 217ab42 vs. CSF"))
+
+bootstrap_replicates <- boot_results$t
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results$t0[index]
+  results_underH0_diff <- bootstrap_replicates[, index] - mean(bootstrap_replicates[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_1cp[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+##Add outcomes to dataframe (function to establish dataframe as desired)
+create_df <- function(method_name, boot_acc_index, boot_ppv_index, boot_npv_index, boot_sen_index, boot_spec_index,boot_tp_index,boot_fp_index,boot_tn_index,boot_fn_index) {
+  data.frame(
+    method = method_name,
+    accuracy = round(boot_results$t0[boot_acc_index], 3),
+    acc_ci_lower = round(quantile(boot_results$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    acc_ci_upper = round(quantile(boot_results$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    PPV = round(boot_results$t0[boot_ppv_index], 3),
+    ppv_ci_lower = round(quantile(boot_results$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    ppv_ci_upper = round(quantile(boot_results$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    NPV = round(boot_results$t0[boot_npv_index], 3),
+    npv_ci_lower = round(quantile(boot_results$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    npv_ci_upper = round(quantile(boot_results$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Sensitivity =round(boot_results$t0[boot_sen_index], 3),
+    sen_ci_lower = round(quantile(boot_results$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    sen_ci_upper = round(quantile(boot_results$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Specificity = round(boot_results$t0[boot_spec_index], 3),
+    spec_ci_lower = round(quantile(boot_results$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    spec_ci_upper = round(quantile(boot_results$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    TP = round(boot_results$t0[boot_tp_index], 0),
+    FP = round(boot_results$t0[boot_fp_index], 0),
+    TN = round(boot_results$t0[boot_tn_index], 0),
+    FN = round(boot_results$t0[boot_fn_index], 0),
+    intermediate_n_percentage = NA,
+    intermediate_n_percentage_low = NA,
+    intermediate_n_percentage_high = NA,
+    stringsAsFactors = FALSE,
+    row.names = "1 Cutpoint"
+  )
+}
+
+results_1cp_1 <- create_df(method_name = "Plasma p-tau217",boot_acc_index = 1,boot_ppv_index = 4,boot_npv_index = 7, boot_sen_index=19, boot_spec_index=22,boot_tp_index = 28, boot_fp_index=29, boot_tn_index=30, boot_fn_index=31)
+
+results_1cp_2 <- create_df(method_name = "Plasma p-tau217/AB42",boot_acc_index = 2,boot_ppv_index = 5,boot_npv_index = 8, boot_sen_index=20, boot_spec_index=23,boot_tp_index = 32, boot_fp_index=33, boot_tn_index=34, boot_fn_index=35)
+
+results_1cp_3 <- create_df(method_name = "CSF p-tau181/AB42",boot_acc_index = 3,boot_ppv_index = 6,boot_npv_index = 9, boot_sen_index=21, boot_spec_index=24,boot_tp_index = 36, boot_fp_index=37, boot_tn_index=38, boot_fn_index=39)
+merged_results_1cp <- rbind(results_1cp_1, results_1cp_2, results_1cp_3)
+
+#Step 2: establish the intermediate zone
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ptau217 = case_when(
+    ptau217_neg == 0 ~ 1,  # sens95 equals 0
+    ptau217_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_ptau217ab42 = case_when(
+    ptau217ab42_neg == 0 ~ 1,  # sens95 equals 0
+    ptau217ab42_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+df.outlier <- df.outlier %>%
+  mutate(greyzone_csf = case_when(
+    csf_neg == 0 ~ 1,  # sens95 equals 0
+    csf_pos == 1 ~ 3,  # spec95 equals 1
+    TRUE ~ 2                     # Intermediate values
+  ))
+
+##Function to bootstrap %intermediate
+f_greyzone <- function(data, indices){
+  d <- data[indices, ]
+  
+  test_bio <- c("ptau217","PL_217_42", "CSF_18142")
+  pred_pos <- c("ptau217_pos", "ptau217ab42_pos", "csf_pos")
+  pred_neg <- c("ptau217_neg", "ptau217ab42_neg", "csf_neg")
+  
+  for (i in seq_along(test_bio)) {
+    greyzone_col <- paste0("greyzone_", test_bio[i])
+    neg_col <- pred_neg[i]
+    pos_col <- pred_pos[i]
+    
+    d <- d %>%
+      mutate(!!greyzone_col := case_when(
+        !!sym(neg_col) == 0 ~ 1,  # sens95 equals 0
+        !!sym(pos_col) == 1 ~ 3,  # spec95 equals 1
+        TRUE ~ 2
+      ))  
+  }
+  
+  int_n_ptau217 <- length(which(d$greyzone_ptau217 ==2))
+  int_perc_ptau217 <- round((length(which(d$greyzone_ptau217 == 2)) / nrow(d)) * 100, 3)
+  
+  int_n_ptau217ab42 <- length(which(d$greyzone_PL_217_42 ==2))
+  int_perc_ptau217ab42 <- round((length(which(d$greyzone_PL_217_42 == 2)) / nrow(d)) * 100, 3)
+  
+  int_n_csf <- length(which(d$greyzone_csf ==2))
+  int_perc_csf <- round((length(which(d$greyzone_csf == 2)) / nrow(d)) * 100, 3)
+  
+  #DIFFERENCES BETWEEN ASSAYS
+  diff_perc_ptau217_ptau217ab42 <- int_perc_ptau217 - int_perc_ptau217ab42
+  diff_perc_ptau217_csf <- int_perc_ptau217 - int_perc_csf
+  diff_perc_ptau217ab42_csf <- int_perc_ptau217ab42 - int_perc_csf
+  
+  return(c(int_perc_ptau217, int_perc_ptau217ab42,int_perc_csf,
+           diff_perc_ptau217_ptau217ab42, diff_perc_ptau217_csf, diff_perc_ptau217ab42_csf))
+}
+
+set.seed(12345)
+boot_results_greyzone <- boot(data = df.outlier, statistic = f_greyzone, R = 2000)
+
+##Calculate pvalue %intermediate differences
+stat_indices <- list("Int% pval p-tau217 vs. p-tau217/AB42" = 4 , 
+                     "Int% pval p-tau217 vs. CSF" = 5, 
+                     "Int% pval p-tau217/AB42 vs.CSF" = 6)
+
+pvals_intermediate <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Int% pval p-tau217 vs. p-tau217/AB42","Int% pval p-tau217 vs. CSF","Int% pval p-tau217/AB42 vs.CSF"))
+
+bootstrap_replicates_grey <- boot_results_greyzone$t
+
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results_greyzone$t0[index]
+  results_underH0_diff <- bootstrap_replicates_grey[, index] - mean(bootstrap_replicates_grey[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_intermediate[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+#Step 3: Two cutoff approach
+
+f_comp_stats_2cp <- function(data, indices) {
+  d <- as.data.frame(data[indices,])
+  
+  
+  compute_metrics <- function(d,greyzone, true, pred) {
+    
+    dx <- d %>% filter(!!sym(greyzone) != 2)
+    
+    v_tp <- sum(dx[[true]] == 1 & dx[[pred]] == 1)
+    v_fp <- sum(dx[[true]] == 0 & dx[[pred]] == 1)
+    v_tn <- sum(dx[[true]] == 0 & dx[[pred]] == 0)
+    v_fn <- sum(dx[[true]] == 1 & dx[[pred]] == 0)
+    
+    sens <- v_tp / (v_tp + v_fn)
+    spec <- v_tn / (v_tn + v_fp)
+    acc <- (v_tp + v_tn) / (v_tp + v_tn + v_fn + v_fp)
+    ppv <- cutpointr::ppv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    npv <- cutpointr::npv(tp = v_tp, fp = v_fp, tn = v_tn, fn = v_fn)
+    
+    return(c(acc, ppv, npv, sens, spec, v_tp, v_fp, v_tn, v_fn))#sens#spec
+  }
+  
+  greyzones <- c("greyzone_ptau217", "greyzone_ptau217ab42","greyzone_csf")
+  test_columns <- c("ptau217_pos","ptau217ab42_pos", "csf_pos")
+  true_label <- "petstat"
+  
+  results <- matrix(nrow = length(test_columns), ncol =9)
+  colnames(results) <- c("Accuracy", "PPV", "NPV", "Sensitivity", "Specificity", "TP", "FP", "TN", "FN")
+  rownames(results) <- c("ptau217", "PL_217_42", "CSF_18142")
+  
+  for (i in seq_along(test_columns)) {
+    results[i, ] <- round(compute_metrics(d, greyzone = greyzones[i], true = true_label, pred = test_columns[i]),3)
+  }
+  
+  #P-tau217
+  acc1 <- results[1,1]
+  ppv1 <- results[1,2]
+  npv1 <- results[1,3]
+  sens1 <- results[1,4]
+  spec1 <- results[1,5]
+  tp1 <- results[1,6]
+  fp1 <- results[1,7]
+  tn1 <- results[1,8]
+  fn1 <- results[1,9]
+  
+  #P-tau217/AB42
+  acc2 <- results[2,1]
+  ppv2 <- results[2,2]
+  npv2 <- results[2,3]
+  sens2 <- results[2,4]
+  spec2 <- results[2,5]
+  tp2 <- results[2,6]
+  fp2 <- results[2,7]
+  tn2 <- results[2,8]
+  fn2 <- results[2,9]
+  
+  #CSF
+  acc3 <- results[3,1]
+  ppv3 <- results[3,2]
+  npv3 <- results[3,3]
+  sens3 <- results[3,4]
+  spec3 <- results[3,5]
+  tp3 <- results[3,6]
+  fp3 <- results[3,7]
+  tn3 <- results[3,8]
+  fn3 <- results[3,9]
+  
+  #p-tau217 vs. 217/ab42
+  diff_acc_217_217ab42 <- acc1 - acc2
+  diff_ppv_217_217ab42 <- ppv1 - ppv2
+  diff_npv_217_217ab42 <- npv1 - npv2
+  diff_sens_217_217ab42 <- sens1 - sens2
+  
+  #p-tau217 vs. CSF
+  diff_acc_217_csf <- acc1 - acc3
+  diff_ppv_217_csf <- ppv1 - ppv3
+  diff_npv_217_csf <- npv1 - npv3
+  diff_sens_217_csf <- sens1 - sens3
+  
+  #217/ab42 vs. CSF
+  diff_acc_217ab42_csf <- acc2 - acc3
+  diff_ppv_217ab42_csf <- ppv2 - ppv3
+  diff_npv_217ab42_csf <- npv2 - npv3
+  diff_sens_217ab42_csf <- sens2 - sens3
+  
+  return(c(acc1, acc2, acc3, ppv1, ppv2, ppv3, npv1, npv2, npv3,#9
+           diff_acc_217_217ab42, diff_ppv_217_217ab42, diff_npv_217_217ab42,#12
+           diff_acc_217_csf,diff_ppv_217_csf,diff_npv_217_csf, #15
+           diff_acc_217ab42_csf, diff_ppv_217ab42_csf,diff_npv_217ab42_csf,#18
+           sens1, sens2, sens3, spec1, spec2, spec3, #24
+           diff_sens_217_217ab42,diff_sens_217_csf, diff_sens_217ab42_csf,
+           tp1, fp1, tn1, fn1, tp2, fp2, tn2, fn2, tp3, fp3, tn3, fn3)) #31 #35 #39)) #27
+} 
+
+set.seed(12345)
+boot_results_2cp <- boot(data = df.outlier, statistic = f_comp_stats_2cp, R = 2000)
+
+##Calculate pvalues two cutoffs
+stat_indices <- list(
+  "Accuracy 217 vs. 217_AB42" = 10,
+  "PPV pval 217 vs. 217_AB42" = 11,
+  "NPV pval 217 vs. 217_AB42" = 12,
+  "Accuracy 217 vs. CSF" = 13,
+  "PPV pval 217 vs. CSF" = 14,
+  "NPV pval 217 vs. CSF" = 15,
+  "Accuracy 217ab42 vs. CSF" = 16,
+  "PPV pval 217ab42 vs. CSF" = 17,
+  "NPV pval 217ab42 vs. CSF" = 18)
+
+pvals_2cp <- data.frame(
+  Pval = numeric(length(stat_indices)),
+  row.names = c("Accuracy 217 vs. 217_AB42","PPV pval 217 vs. 217_AB42","NPV pval 217 vs. 217_AB42","Accuracy 217 vs. CSF","PPV pval 217 vs. CSF","NPV pval 217 vs. CSF","Accuracy 217ab42 vs. CSF","PPV pval 217ab42 vs. CSF","NPV pval 217ab42 vs. CSF"))
+
+bootstrap_replicates_2 <- boot_results_2cp$t
+for (stat_name in names(stat_indices)) {
+  index <- stat_indices[[stat_name]]
+  boot_diff <- boot_results_2cp$t0[index]
+  results_underH0_diff <- bootstrap_replicates_2[, index] - mean(bootstrap_replicates_2[, index])
+  p_value <- mean(abs(results_underH0_diff) >= abs(boot_diff))
+  pvals_2cp[paste0(stat_name), "Pval"] <- round(p_value, 3)
+}
+
+##Add results to dataframe
+create_df_2 <- function(method_name, boot_acc_index, boot_ppv_index, boot_npv_index,boot_grey_index,boot_sen_index, boot_spec_index,boot_tp_index,boot_fp_index,boot_tn_index,boot_fn_index) {
+  data.frame(
+    method = method_name,
+    accuracy = round(boot_results_2cp$t0[boot_acc_index], 3),
+    acc_ci_lower = round(quantile(boot_results_2cp$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    acc_ci_upper = round(quantile(boot_results_2cp$t[, boot_acc_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    PPV = round(boot_results_2cp$t0[boot_ppv_index], 3),
+    ppv_ci_lower = round(quantile(boot_results_2cp$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    ppv_ci_upper = round(quantile(boot_results_2cp$t[, boot_ppv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    NPV = round(boot_results_2cp$t0[boot_npv_index], 3),
+    npv_ci_lower = round(quantile(boot_results_2cp$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    npv_ci_upper = round(quantile(boot_results_2cp$t[, boot_npv_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Sensitivity =round(boot_results_2cp$t0[boot_sen_index], 3),
+    sen_ci_lower = round(quantile(boot_results_2cp$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    sen_ci_upper = round(quantile(boot_results_2cp$t[, boot_sen_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    Specificity = round(boot_results_2cp$t0[boot_spec_index], 3),
+    spec_ci_lower = round(quantile(boot_results_2cp$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    spec_ci_upper = round(quantile(boot_results_2cp$t[, boot_spec_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    TP = round(boot_results_2cp$t0[boot_tp_index], 0),
+    FP = round(boot_results_2cp$t0[boot_fp_index], 0),
+    TN = round(boot_results_2cp$t0[boot_tn_index], 0),
+    FN = round(boot_results_2cp$t0[boot_fn_index], 0),
+    intermediate_n_percentage = round(boot_results_greyzone$t0[boot_grey_index],3),
+    intermediate_n_percentage_low = round(quantile(boot_results_greyzone$t[, boot_grey_index], c(0.025, 0.975), na.rm=T)[1], 3),
+    intermediate_n_percentage_high = round(quantile(boot_results_greyzone$t[, boot_grey_index], c(0.025, 0.975), na.rm=T)[2], 3),
+    stringsAsFactors = FALSE,
+    row.names = "2 Cutpoints"
+  )
+}
+
+results_2cp_1 <- create_df_2(method_name = "Plasma p-tau217",boot_acc_index = 1,boot_ppv_index = 4,boot_npv_index = 7, boot_grey_index = 1, boot_sen_index=19, boot_spec_index=22,boot_tp_index = 28, boot_fp_index=29, boot_tn_index=30, boot_fn_index=31)
+
+results_2cp_2 <- create_df_2(method_name = "Plasma p-tau217/AB42",boot_acc_index = 2,boot_ppv_index = 5,boot_npv_index = 8, boot_grey_index = 2, boot_sen_index=20, boot_spec_index=23,boot_tp_index = 32, boot_fp_index=33, boot_tn_index=34, boot_fn_index=35)
+
+results_2cp_3 <- create_df_2(method_name = "CSF p-tau181/AB42",boot_acc_index = 3,boot_ppv_index = 6,boot_npv_index = 9, boot_grey_index = 3, boot_sen_index=21, boot_spec_index=24,boot_tp_index = 36, boot_fp_index=37, boot_tn_index=38, boot_fn_index=39)
+merged_results_2cp <- rbind(results_2cp_1, results_2cp_2, results_2cp_3)
+
+#Step 4: Bind all datasets together
+merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
+merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints","2 Cutpoints")
+openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results_outliers.xlsx", rowNames =T)
+
+pvalues_all <- rbind(
+  pvals_1cp,
+  pvals_intermediate,
+  pvals_2cp
+)
+openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results_pvals_outliers.xlsx", rowNames =T)
+
+
+#Step 5: Create dataframe for manuscript tables
+table_df <- data.frame(
+  Measure = merged_comps_bf$method,
+  Accuracy = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$accuracy, merged_comps_bf$acc_ci_lower, merged_comps_bf$acc_ci_upper),
+  PPV = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$PPV, merged_comps_bf$ppv_ci_lower, merged_comps_bf$ppv_ci_upper),
+  NPV = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$NPV, merged_comps_bf$npv_ci_lower, merged_comps_bf$npv_ci_upper),
+  Gre= sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$intermediate_n_percentage, merged_comps_bf$intermediate_n_percentage_low, merged_comps_bf$intermediate_n_percentage_high),
+  Sensitivity = sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$Sensitivity, merged_comps_bf$sen_ci_lower, merged_comps_bf$sen_ci_upper),
+  Specificity =sprintf("%.2f (%.2f-%.2f)", merged_comps_bf$Specificity, merged_comps_bf$spec_ci_lower, merged_comps_bf$spec_ci_upper))
+
+openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results_outliers_table.xlsx", rowNames =T)
+
+```
