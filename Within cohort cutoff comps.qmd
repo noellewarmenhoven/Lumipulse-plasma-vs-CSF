@@ -40,7 +40,7 @@ df$csf_4240 <- df$csf_4240/10
 df$Plasma_AB142_pgmL_Lumi_c <- 1.119 + 1.114*df$Plasma_AB142_pgmL_Lumi
 df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi_c)
 
-df <- df %>% select(sid_bf2, sid_diag, VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi, PL_217_42_n, petstat)
+df <- df %>% select(sid_bf2, sid_diag, VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi)
 df <- df %>% drop_na(csf_4240, ptau217)
 
 ```
@@ -61,14 +61,18 @@ ggplot(df, aes(x = petstat, y = ptau217, fill=petstat)) +
   geom_hline(yintercept=0.320, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_hline(yintercept=0.253, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
+    scale_y_continuous(breaks = seq(0, 2.2, by = 0.50), limits = c(0, 2.2),
+                     labels = function(x) sprintf("%.2f", x)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "Plasma p-tau217") +
   scale_fill_manual(values = c("#afafaf", "#4ca481"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
+    theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 1.5)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Cohort cutoff/LPptau217_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
+ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Cohort cutoffs/LPptau217_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
   annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.007, ymax = 0.011,
@@ -79,30 +83,37 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
   geom_hline(yintercept=0.009, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
     geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
+    scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
   labs(x = "AD status", y = "Plasma p-tau217/AB42") +
+    scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
   scale_fill_manual(values = c("#afafaf", "#c52851"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
-  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5,  label.y = 0.06)
+  theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
+  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
 ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Cohort cutoffs/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
+
 ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
-  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.054, ymax = 0.066,
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.048, ymax = 0.066,
            fill = "grey80", alpha = 0.4) +
   geom_violin(alpha=0.3) +
-  geom_hline(yintercept=0.054, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
+  geom_hline(yintercept=0.048, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
   geom_hline(yintercept=0.066, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_hline(yintercept=0.054, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
     geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "CSF AB42/40") +
   scale_fill_manual(values = c("#afafaf", "#295dbf"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
+    theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5,  label.y = 0.1)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Cohort cutoffe/ptau181AB42_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
+ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Cohort cutoffs/ptau181AB42_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ```
 
@@ -600,26 +611,27 @@ plotdata1 <- plotdata %>% filter(Cutpoint == "1 Cutpoint")
 plotdata1$Method2 <- as.factor(c("3", "2", "1"))
 
 group_order <- c("NPV", "PPV", "Accuracy")
+group_order2 <- c("3", "1", "2")
+
 tick_positions <- seq(40, 100, by = 10)
 
 #Forest plot Acc, PPV, NPV
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
+ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=factor(Method2, levels=group_order2), fill=factor(Method2, levels=group_order2)))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
                 width = 0, linewidth = 1.05, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+#, fill="#374e55ff", color="#374e55ff")+
+  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+
   scale_x_continuous(limits=c(50,110),breaks = seq(50,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106), #aes(shape=(Method2)), 
-            position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#295dbf", "#c52851","#4ca481"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
-  scale_fill_manual(values=c("#295dbf", "#c52851", "#4ca481"), guide="none")+
-  theme_classic() + #2862c0
+  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100),
+                group=factor(Method2, levels=group_order2), x=106), position = position_dodge(width = 0.8), size = 2) +
+  scale_color_manual(values=c("#295dbf", "#4ca481","#c52851"), guide="none")+
+  scale_fill_manual(values=c("#295dbf", "#4ca481", "#c52851"), guide="none")+
+  theme_classic() + 
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
         axis.title.x = element_text(size = 7,color="black"),
         axis.ticks.y = element_blank(),
-        #axis.title.x = element_text(),
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
@@ -655,20 +667,23 @@ plotdata1 <- plotdata %>% filter(Cutpoint == "2 Cutpoint")
 plotdata1$Method2 <- as.factor(c("3", "2", "1"))
 
 group_order <- c("NPV", "PPV", "Accuracy")
+group_order2 <- c("3", "1", "2")
+
 tick_positions <- seq(40, 100, by = 10)
 
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
+#Forest plot Acc, PPV, NPV
+ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=factor(Method2, levels=group_order2), fill=factor(Method2, levels=group_order2)))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
                 width = 0, linewidth = 1.05, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+#, fill="#374e55ff", color="#374e55ff")+
+  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+
   scale_x_continuous(limits=c(50,110),breaks = seq(50,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106), #aes(shape=(Method2)), 
-            position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#295dbf", "#c52851", "#4ca481"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
-  scale_fill_manual(values=c("#295dbf", "#c52851", "#4ca481"), guide="none")+
-  theme_classic() + #2862c0
+  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100),
+                group=factor(Method2, levels=group_order2), x=106), position = position_dodge(width = 0.8), size = 2) +
+  scale_color_manual(values=c("#295dbf", "#4ca481", "#c52851"), guide="none")+
+  scale_fill_manual(values=c("#295dbf", "#4ca481", "#c52851"), guide="none")+
+  theme_classic() +
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
         axis.title.x = element_text(size = 7,color="black"),
@@ -682,17 +697,18 @@ ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Cohort cutof
 plot_grey <- cbind(merged_comps_bf[4:6, 1], merged_comps_bf[4:6, 24:26])
 colnames(plot_grey) <- c("Method", "Measure1", "ci_low", "ci_high")
 plot_grey$Measure <- c("Grey")
-group_order <- c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
+group_order <- c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40")<
 
 
-ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40"))))+
+ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40"))))+
   geom_bar(color="black",stat = "identity", alpha=0.8, width=0.6,  position = position_dodge(width = 0.1),)+
-  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
+  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
   scale_y_continuous(limits=c(0,50),breaks = seq(0,50, by=10),expand =c(0,0))+
-  geom_text(aes(label = sprintf("%.1f", Measure1)), position = position_dodge(width=0.75), vjust=-3, size = 2) +
-  scale_fill_manual(values = c("#4ca481", "#c52851", "#295dbf"), guide="none") + #, guide="none"
+  geom_text(aes(label = sprintf("%.1f", Measure1)), position = position_dodge(width=0.75),
+            vjust=-3, size = 2) +
+  scale_fill_manual(values = c("#c52851", "#4ca481", "#295dbf"), guide="none") +
   labs(title = element_blank(),x = "",y = "Intermediate values (%)") +
-  theme_classic()+#b6254b,#c7b9e8
+  theme_classic()+
   theme(axis.text.x = element_blank(),
         axis.text.y = element_text(size=6),
         axis.title.x = element_text(size=7),
@@ -745,12 +761,16 @@ ggplot(df, aes(x = petstat, y = ptau217, fill=petstat)) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "Plasma p-tau217") +
+    scale_y_continuous(breaks = seq(0, 2.2, by = 0.50), limits = c(0, 2.2),
+                     labels = function(x) sprintf("%.2f", x)) +
   scale_fill_manual(values = c("#afafaf", "#4ca481"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
+    theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 1.5)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Cohort cutoff/LPptau217_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
+ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Cohort cutoffs/LPptau217_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
   annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.007, ymax = 0.011,
@@ -763,29 +783,33 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "Plasma p-tau217/AB42") +
   scale_fill_manual(values = c("#afafaf", "#c52851"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
-  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5,  label.y = 0.06)
+  theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
+  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
 ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Cohort cutoffs/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
+
 ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
-  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.054, ymax = 0.066,
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.048, ymax = 0.066,
            fill = "grey80", alpha = 0.4) +
   geom_violin(alpha=0.3) +
-  geom_hline(yintercept=0.054, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
+  geom_hline(yintercept=0.048, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
   geom_hline(yintercept=0.066, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_hline(yintercept=0.054, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
     geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "CSF AB42/40") +
   scale_fill_manual(values = c("#afafaf", "#295dbf"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
+    theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5,  label.y = 0.1)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Cohort cutoffe/ptau181AB42_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
-
+ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Cohort cutoffs/ptau181AB42_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 ```
 
 ### Metrics VR (BFPC)
@@ -1282,20 +1306,22 @@ plotdata1 <- plotdata %>% filter(Cutpoint == "1 Cutpoint")
 plotdata1$Method2 <- as.factor(c("3", "2", "1"))
 
 group_order <- c("NPV", "PPV", "Accuracy")
+group_order2 <- c("3", "1", "2")
+
 tick_positions <- seq(40, 100, by = 10)
 
 #Forest plot Acc, PPV, NPV
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
+ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=factor(Method2, levels=group_order2), fill=factor(Method2, levels=group_order2)))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
                 width = 0, linewidth = 1.05, position = position_dodge(width = 0.8)) +
   geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+#, fill="#374e55ff", color="#374e55ff")+
   scale_x_continuous(limits=c(50,110),breaks = seq(50,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106), #aes(shape=(Method2)), 
+  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=factor(Method2, levels=group_order2), x=106), #aes(shape=(Method2)), 
             position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#295dbf", "#c52851","#4ca481"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
-  scale_fill_manual(values=c("#295dbf", "#c52851", "#4ca481"), guide="none")+
+  scale_color_manual(values=c("#295dbf", "#4ca481","#c52851"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
+  scale_fill_manual(values=c("#295dbf", "#4ca481", "#c52851"), guide="none")+
   theme_classic() + #2862c0
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
@@ -1334,22 +1360,24 @@ plot_grey$Measure <- c("Grey")
 plotdata <- rbind(plot_acc, plot_ppv, plot_npv)
 
 plotdata1 <- plotdata %>% filter(Cutpoint == "2 Cutpoint")
-plotdata1$Method2 <- as.factor(c("3", "2", "1"))
+plotdata1$Method2 <- as.factor(c("3", "1", "2"))
 
 group_order <- c("NPV", "PPV", "Accuracy")
 tick_positions <- seq(40, 100, by = 10)
+group_order2 <- c("3", "1", "2")
 
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
+
+ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=factor(Method2, levels=group_order2), fill=factor(Method2, levels=group_order2)))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
                 width = 0, linewidth = 1.05, position = position_dodge(width = 0.8)) +
   geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+#, fill="#374e55ff", color="#374e55ff")+
   scale_x_continuous(limits=c(50,110),breaks = seq(50,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106), #aes(shape=(Method2)), 
+  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=factor(Method2, levels=group_order2), x=106), #aes(shape=(Method2)), 
             position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#295dbf", "#c52851", "#4ca481"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
-  scale_fill_manual(values=c("#295dbf", "#c52851", "#4ca481"), guide="none")+
+  scale_color_manual(values=c("#295dbf", "#4ca481", "#c52851"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
+  scale_fill_manual(values=c("#295dbf", "#4ca481", "#c52851"), guide="none")+
   theme_classic() + #2862c0
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
@@ -1364,15 +1392,15 @@ ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Cohort c
 plot_grey <- cbind(merged_comps_bf[4:6, 1], merged_comps_bf[4:6, 24:26])
 colnames(plot_grey) <- c("Method", "Measure1", "ci_low", "ci_high")
 plot_grey$Measure <- c("Grey")
-group_order <- c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
+group_order <- c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40")
 
 
-ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40"))))+
+ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40"))))+
   geom_bar(color="black",stat = "identity", alpha=0.8, width=0.6,  position = position_dodge(width = 0.1),)+
-  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
+  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF AB42/40")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
   scale_y_continuous(limits=c(0,50),breaks = seq(0,50, by=10),expand =c(0,0))+
   geom_text(aes(label = sprintf("%.1f", Measure1)), position = position_dodge(width=0.75), vjust=-3, size = 2) +
-  scale_fill_manual(values = c("#4ca481", "#c52851", "#295dbf"), guide="none") + #, guide="none"
+  scale_fill_manual(values = c("#c52851", "#4ca481", "#295dbf"), guide="none") + #, guide="none"
   labs(title = element_blank(),x = "",y = "Intermediate values (%)") +
   theme_classic()+#b6254b,#c7b9e8
   theme(axis.text.x = element_blank(),
@@ -1406,56 +1434,68 @@ df <- df %>% filter(cog_stat == 1)
 ```{r boxplots vr ADNI}
 df$petstat <- as.factor(df$VR)
 
-ggplot(df, aes(x = petstat, y = ptau217, fill=petstat)) +
- annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.019, ymax = 0.022,
+ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.003, ymax = 0.009,
            fill = "grey80", alpha = 0.4) +
   geom_violin(alpha=0.3) +
+  geom_hline(yintercept=0.003, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
+  geom_hline(yintercept=0.009, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
+  geom_hline(yintercept=0.007, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
+    geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
+  scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
+    scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
+  labs(x = "AD status", y = "Plasma p-tau217/AB42") +
+    scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
+  scale_fill_manual(values = c("#afafaf", "#c52851"), guide = "none") + #003f5c
+  theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
+  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
+ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Cohort cutoffs/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
+
+ggplot(df, aes(x = petstat, y = ptau217, fill=petstat)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.09, ymax = 0.20,
+           fill = "grey80", alpha = 0.4) +
+  geom_violin(alpha=0.3) +
+  geom_hline(yintercept=0.09, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
+  geom_hline(yintercept=0.20, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
+  geom_hline(yintercept=0.17, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  geom_hline(yintercept=0.019, linetype="dotted", color="grey20") +
-  geom_hline(yintercept=0.022, linetype="dotted", color="grey20") +
-  geom_hline(yintercept=0.021, linetype="dotted", color="red") +
+    scale_y_continuous(breaks = seq(0, 2.2, by = 0.50), limits = c(0, 2.2),
+                     labels = function(x) sprintf("%.2f", x)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "Plasma p-tau217") +
   scale_fill_manual(values = c("#afafaf", "#4ca481"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
-  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y=1.5)
+    theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
+  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 1.5)
 ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Cohort cutoffs/LPptau217_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
-ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
-  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.019, ymax = 0.022,
-           fill = "grey80", alpha = 0.4) +
-  geom_violin(alpha=0.3) +
-  geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  geom_hline(yintercept=0.019, linetype="dotted", color="grey20") +
-  geom_hline(yintercept=0.022, linetype="dotted", color="grey20") +
-  geom_hline(yintercept=0.021, linetype="dotted", color="red") +
-  scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
-  labs(x = "AD status", y = "Plasma p-tau217/AB42") +
-  scale_fill_manual(values = c("#afafaf", "#c52851"), guide = "none") + #003f5c
-  #theme_classic()+
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
-  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.1)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Cohort cutoffs/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
+
 
 ggplot(df, aes(x = petstat, y = CSF_18142, fill=petstat)) +
-  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.019, ymax = 0.022,
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.021, ymax = 0.022,
            fill = "grey80", alpha = 0.4) +
   geom_violin(alpha=0.3) +
-  geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  geom_hline(yintercept=0.019, linetype="dotted", color="grey20") +
-  geom_hline(yintercept=0.022, linetype="dotted", color="grey20") +
-  geom_hline(yintercept=0.021, linetype="dotted", color="red") +
+  geom_hline(yintercept=0.021, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
+  geom_hline(yintercept=0.022, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
+  geom_hline(yintercept=0.019, linetype="dashed", color="red", alpha = .8, linewidth = .35) +
+    geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+"))+
   labs(x = "AD status", y = "CSF p-tau181/AB42") +
-  scale_fill_manual(values = c("#c9c3c3", "#ea8a0f"), guide = "none") +
-  theme(axis.title.x = element_blank(), axis.title.y=element_text(face="bold", size=7), axis.text.x = element_text(size=6), axis.text.y=element_text(size=6),
-        panel.border = element_rect(color="black", fill = "transparent", linewidth=0.5), panel.background = element_blank())+
-  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y=0.15)
-
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Cohort cutoffs/ptau181AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
+  scale_fill_manual(values = c("#afafaf", "#ea8a0f"), guide = "none") + #003f5c
+    theme_classic()+
+    theme(axis.title.x = element_blank(),
+        axis.title.y = element_text(size=7),
+        axis.text.x = element_text(size=6),
+        axis.text.y = element_text(size=6))+
+  stat_compare_means(method="t.test", label="p.signif", label.x = 1.5,  label.y = 0.1)
+ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Cohort cutoffs/ptau181AB42_Boxplot_v2.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 
 ```
@@ -1473,13 +1513,13 @@ df$ptau217ab42_spec90 <- ifelse(df$PL_217_42 > 0.007, 1, 0)
 df$ptau217ab42_spec95 <- ifelse(df$PL_217_42 > 0.009, 1, 0)
 df$ptau217ab42_sens95 <- ifelse(df$PL_217_42 > 0.003, 1, 0)
 
-df$csf_spec90 <- ifelse(df$CSF_18142 > 0.028, 1, 0)
+df$csf_spec90 <- ifelse(df$CSF_18142 > 0.019, 1, 0)
 df$csf_spec95 <- ifelse(df$CSF_18142 > 0.022, 1, 0)
 df$csf_sens95 <- ifelse(df$CSF_18142 > 0.021, 1, 0)
 
 #1 cutpoint ----
 ##AUC differences with DeLong
-biomarkers <- c("ptau217","PL_217_42", "CSF_18142")
+biomarkers <- c("PL_217_42","ptau217", "CSF_18142")
 results_delong <- list()
 index <- 1
 
@@ -1994,28 +2034,26 @@ plotdata1 <- plotdata %>% filter(Cutpoint == "1 Cutpoint")
 plotdata1$Method2 <- as.factor(c("3", "2", "1"))
 
 group_order <- c("NPV", "PPV", "Accuracy")
+group_order2 <- c("3", "1", "2")
 tick_positions <- seq(40, 100, by = 10)
 
-pallete <- c("#4a7738", "#304C89","#ab123a")
-
 #Forest plot Acc, PPV, NPV
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
+ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=factor(Method2, levels=group_order2), fill=factor(Method2, levels=group_order2)))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
                 width = 0, linewidth = 1.05, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+#, fill="#374e55ff", color="#374e55ff")+
+  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+
   scale_x_continuous(limits=c(50,110),breaks = seq(50,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106), #aes(shape=(Method2)), 
-            position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#4a7738", "#304C89","#ab123a"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
-  scale_fill_manual(values=c("#4a7738", "#304C89", "#ab123a"), guide="none")+
-  theme_classic() + #2862c0
+  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100),
+                group=factor(Method2, levels=group_order2), x=106),position = position_dodge(width = 0.8), size = 2) +
+  scale_color_manual(values=c("#ea8a0f", "#4ca481","#c52851"), guide="none")+
+  scale_fill_manual(values=c("#ea8a0f", "#4ca481", "#c52851"), guide="none")+
+  theme_classic() + 
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
         axis.title.x = element_text(size = 7,color="black"),
         axis.ticks.y = element_blank(),
-        #axis.title.x = element_text(),
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
@@ -2051,26 +2089,27 @@ plotdata1$Method2 <- as.factor(c("3", "2", "1"))
 
 group_order <- c("NPV", "PPV", "Accuracy")
 tick_positions <- seq(40, 100, by = 10)
+group_order2 <- c("3", "1", "2")
+
 
 
 #Forest plot Acc, PPV, NPV
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
+ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=factor(Method2, levels=group_order2), fill=factor(Method2, levels=group_order2)))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
                 width = 0, linewidth = 1.05, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+#, fill="#374e55ff", color="#374e55ff")+
+  geom_point(position = position_dodge(width = 0.8), size = 2, stroke = 0.7)+
   scale_x_continuous(limits=c(50,110),breaks = seq(50,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106), #aes(shape=(Method2)), 
+  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=factor(Method2, levels=group_order2), x=106), 
             position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#4a7738", "#304C89","#ab123a"), guide="none")+#labels = c("CSF AB42/40", "p-tau217/AB42", "p-tau217"))+
-  scale_fill_manual(values=c("#4a7738", "#304C89", "#ab123a"), guide="none")+
-  theme_classic() + #2862c0
+  scale_color_manual(values=c("#ea8a0f", "#4ca481","#c52851"), guide="none")+
+  scale_fill_manual(values=c("#ea8a0f", "#4ca481", "#c52851"), guide="none")+
+  theme_classic() + 
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
         axis.title.x = element_text(size = 7,color="black"),
         axis.ticks.y = element_blank(),
-        #axis.title.x = element_text(),
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
@@ -2082,17 +2121,17 @@ ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Cohort cutoffs/Results_2cp
 plot_grey <- cbind(merged_comps_bf[4:6, 1], merged_comps_bf[4:6, 24:26])
 colnames(plot_grey) <- c("Method", "Measure1", "ci_low", "ci_high")
 plot_grey$Measure <- c("Grey")
-group_order <- c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42")
+group_order <- c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF p-tau181/AB42")
 
 
-ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42"))))+
+ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF p-tau181/AB42")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42"))))+
   geom_bar(color="black",stat = "identity", alpha=0.8, width=0.6,  position = position_dodge(width = 0.1),)+
-  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
+  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF p-tau181/AB42")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
   scale_y_continuous(limits=c(0,50),breaks = seq(0,50, by=5),expand =c(0,0))+
   geom_text(aes(label = sprintf("%.1f", Measure1)), position = position_dodge(width=0.75), vjust=-3, size = 2) +
-  scale_fill_manual(values = c("#ab123a", "#304C89", "#4a7738"), guide="none") + #, guide="none"
+  scale_fill_manual(values = c("#c52851", "#4ca481", "#ea8a0f"), guide="none") + 
   labs(title = element_blank(),x = "",y = "Intermediate values (%)") +
-  theme_classic()+#b6254b,#c7b9e8
+  theme_classic()+
   theme(axis.text.x = element_blank(),
         axis.text.y = element_text(size=6),
         axis.title.x = element_text(size=7),
