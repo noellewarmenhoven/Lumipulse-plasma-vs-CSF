@@ -1322,7 +1322,7 @@ df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi_c)
 
 #select dataset
 df.ad <- df %>% filter(df$Study %in% "ADetect")
-df <- df.ad #124
+df <- df.ad 
 df <- df %>% select(VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi)
 df <- df %>% drop_na(csf_4240,ptau217)
 
