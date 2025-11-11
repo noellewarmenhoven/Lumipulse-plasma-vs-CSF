@@ -1,5 +1,5 @@
 ---
-title: "BioFINDER - Validate analyses"
+title: "Comparing p-tau217/AB42 to CSF using FDA cutoffs"
 format: html
 editor: visual
 number-sections: true
@@ -27,23 +27,7 @@ library(see)
 
 ```{r set up data BF-MC}
 #| echo: false
-df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/LP_PlasmaCSF_300625.xlsx")
-df.val <- df %>% filter(df$Study %in% "VALIDATE")
-df <- df.val #124
-
-#change names etc.
-names(df)[names(df) == "Plasma_Ptau217P_pgmL_Lumi"] <- "ptau217"
-df$ptau217 <- as.numeric(as.character(df$ptau217))
-names(df)[names(df) == "csf_clinical_routine_Abeta42_40_ratio_x10"] <- "csf_4240"
-df$csf_4240 <- as.numeric(as.character(df$csf_4240))
-df$csf_4240 <- df$csf_4240/10
-#pass passing-bablok transformation for Lumipulse AB42 assay
-df$Plasma_AB142_pgmL_Lumi_c <- 1.119 + 1.114*df$Plasma_AB142_pgmL_Lumi
-df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi_c)
-
-df <- df %>% select(sid_bf2, sid_diag, VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi)
-df <- df %>% drop_na(csf_4240, ptau217)
-
+df <- read_xlsx("~/d1.xlsx")
 ```
 
 ## 1A. VR outcome
@@ -70,7 +54,6 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ##CSF
 ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
@@ -80,7 +63,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
   geom_hline(yintercept=0.058, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
   geom_hline(yintercept=0.072, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  #scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+")) +
   labs(x = "AD status", y = "CSF AB42/40") +
   scale_fill_manual(values = c("#afafaf", "#295dbf"), guide = "none") +
@@ -90,8 +72,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/CSF_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
-
 
 ```
 
@@ -145,7 +125,7 @@ results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], r
 results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
 results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
 openxlsx::write.xlsx(results_delong,
-                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/DELONG_VR.xlsx")
+                     file="~/DELONG_VR.xlsx")
 
 ##AUC plot
 roc_curve2 <- pROC::roc(petstat ~ ptau217, data=df,quiet=T)
@@ -180,7 +160,6 @@ ggroc(roc_list) +
            label = sprintf("%.2f (%.2f, %.2f)", auc(roc_curve3), ci.auc(roc_curve3)[1], ci.auc(roc_curve3)[3]),
            size = 2, color = "#295dbf")
 
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/AUC.pdf",device = "pdf",width = 35, dpi=500, height = 35, units = "mm")
 ```
 
 ### Metrics VR (BFMC)
@@ -192,6 +171,7 @@ df$petstat <- as.factor(df$VR_overall)
 
 df$ptau217ab42_pos <- ifelse(df$PL_217_42 >= 0.00738, 1, 0) 
 df$ptau217ab42_neg <- ifelse(df$PL_217_42 <= 0.00370, 0, 1)
+
 
 df$ab4240_pos <- ifelse(df$csf_4240 <= 0.072, 1, 0)
 df$ab4240_pos2 <- ifelse(df$csf_4240 <= 0.058, 1, 0)
@@ -527,14 +507,14 @@ merged_results_2cp <- rbind(results_2cp_2, results_2cp_3)
 #Step 4: Bind all datasets together
 merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
 merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints")
-openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results.xlsx", rowNames =T)
+openxlsx::write.xlsx(merged_comps_bf,file="~/Results.xlsx", rowNames =T)
 
 pvalues_all <- rbind(
   pvals_1cp,
   pvals_intermediate,
   pvals_2cp
 )
-openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_pvals.xlsx", rowNames =T)
+openxlsx::write.xlsx(pvalues_all,file="~/Results_pvals.xlsx", rowNames =T)
 
 
 #Step 5: Create dataframe for manuscript tables
@@ -551,7 +531,7 @@ FP =sprintf("%.2f", merged_comps_bf$FP),
 TN =sprintf("%.2f", merged_comps_bf$TN), 
 FN =sprintf("%.2f", merged_comps_bf$FN))
 
-openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_table.xlsx", rowNames =T)
+openxlsx::write.xlsx(table_df,file="~/Results_table.xlsx", rowNames =T)
 
 ```
 
@@ -560,7 +540,7 @@ openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/Bio
 ```{r metric fic BFMC}
 
 ###1 Cutoff
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -587,12 +567,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -603,10 +583,9 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_1cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###2 Cutoffs
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -633,12 +612,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -649,7 +628,6 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Results_2cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###Intermediate plot
 plot_grey <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4, 21:23])
@@ -669,7 +647,6 @@ ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "C
         axis.title.x = element_text(size=6),
         axis.title.y= element_text(size=6),
         panel.border = element_rect(linewidth = 0.5, fill = NA, color=NA))  
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Intermediate.pdf",device = "pdf",width = 30, dpi=500, height = 35, units = "mm")
 
 ```
 
@@ -700,7 +677,6 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ##CSF
 ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
@@ -710,7 +686,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
   geom_hline(yintercept=0.058, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
   geom_hline(yintercept=0.072, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  #scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+")) +
   labs(x = "AD status", y = "CSF AB42/40") +
   scale_fill_manual(values = c("#afafaf", "#295dbf"), guide = "none") +
@@ -720,8 +695,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/CSF_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
-
 
 ```
 
@@ -775,7 +748,7 @@ results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], r
 results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
 results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
 openxlsx::write.xlsx(results_delong,
-                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/DELONG_VR.xlsx")
+                     file="~/DELONG_VR.xlsx")
 
 ##AUC plot
 roc_curve2 <- pROC::roc(petstat ~ ptau217, data=df,quiet=T)
@@ -810,7 +783,6 @@ ggroc(roc_list) +
            label = sprintf("%.2f (%.2f, %.2f)", auc(roc_curve3), ci.auc(roc_curve3)[1], ci.auc(roc_curve3)[3]),
            size = 2, color = "#295dbf")
 
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/AUC.pdf",device = "pdf",width = 35, dpi=500, height = 35, units = "mm")
 ```
 
 ### Metrics CL24 (BFMC)
@@ -1155,14 +1127,14 @@ merged_results_2cp <- rbind(results_2cp_2, results_2cp_3)
 #Step 4: Bind all datasets together
 merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
 merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints")
-openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results.xlsx", rowNames =T)
+openxlsx::write.xlsx(merged_comps_bf,file="~/Results.xlsx", rowNames =T)
 
 pvalues_all <- rbind(
   pvals_1cp,
   pvals_intermediate,
   pvals_2cp
 )
-openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results_pvals.xlsx", rowNames =T)
+openxlsx::write.xlsx(pvalues_all,file="~/Results_pvals.xlsx", rowNames =T)
 
 
 #Step 5: Create dataframe for manuscript tables
@@ -1179,7 +1151,7 @@ FP =sprintf("%.2f", merged_comps_bf$FP),
 TN =sprintf("%.2f", merged_comps_bf$TN), 
 FN =sprintf("%.2f", merged_comps_bf$FN))
 
-openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results_table.xlsx", rowNames =T)
+openxlsx::write.xlsx(table_df,file="~/Results_table.xlsx", rowNames =T)
 
 
 ```
@@ -1189,7 +1161,7 @@ openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/Bio
 ```{r metric fig CL BFMC}
 
 ###1 Cutoff
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -1216,12 +1188,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -1232,10 +1204,9 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results_1cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###2 Cutoffs
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -1262,12 +1233,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -1278,7 +1249,6 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Results_2cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###Intermediate plot
 plot_grey <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4, 21:23])
@@ -1298,7 +1268,6 @@ ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "C
         axis.title.x = element_text(size=6),
         axis.title.y= element_text(size=6),
         panel.border = element_rect(linewidth = 0.5, fill = NA, color=NA))  
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach/Centiloids/Intermediate.pdf",device = "pdf",width = 30, dpi=500, height = 35, units = "mm")
 
 ```
 
@@ -1308,23 +1277,7 @@ ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/FDA approach
 
 ```{r set up data BFPC}
 #| echo: false
-df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/LP_PlasmaCSF_300625.xlsx")
-
-#change names etc.
-names(df)[names(df) == "Plasma_Ptau217P_pgmL_Lumi"] <- "ptau217"
-df$ptau217 <- as.numeric(as.character(df$ptau217))
-names(df)[names(df) == "csf_clinical_routine_Abeta42_40_ratio_x10"] <- "csf_4240"
-df$csf_4240 <- as.numeric(as.character(df$csf_4240))
-df$csf_4240 <- df$csf_4240/10
-#PB transformation for AB42
-df$Plasma_AB142_pgmL_Lumi_c <- 1.119 + 1.114*df$Plasma_AB142_pgmL_Lumi
-df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi_c)
-
-#select dataset
-df.ad <- df %>% filter(df$Study %in% "ADetect")
-df <- df.ad 
-df <- df %>% select(VR_overall, CL_fnc_ber_com_composite, csf_4240, ptau217, PL_217_42, Plasma_AB142_pgmL_Lumi_c, Plasma_AB142_pgmL_Lumi)
-df <- df %>% drop_na(csf_4240,ptau217)
+df <- read_xlsx("~/d2.xlsx")
 
 ```
 
@@ -1352,7 +1305,6 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ##CSF
 ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
@@ -1362,7 +1314,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
   geom_hline(yintercept=0.058, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
   geom_hline(yintercept=0.072, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  #scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+")) +
   labs(x = "AD status", y = "CSF AB42/40") +
   scale_fill_manual(values = c("#afafaf", "#295dbf"), guide = "none") +
@@ -1372,8 +1323,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/CSF_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
-
 
 ```
 
@@ -1427,7 +1376,7 @@ results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], r
 results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
 results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
 openxlsx::write.xlsx(results_delong,
-                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/DELONG_VR.xlsx")
+                     file="~/DELONG_VR.xlsx")
 
 ##AUC plot
 roc_curve2 <- pROC::roc(petstat ~ ptau217, data=df,quiet=T)
@@ -1462,7 +1411,6 @@ ggroc(roc_list) +
            label = sprintf("%.2f (%.2f, %.2f)", auc(roc_curve3), ci.auc(roc_curve3)[1], ci.auc(roc_curve3)[3]),
            size = 2, color = "#295dbf")
 
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/AUC.pdf",device = "pdf",width = 35, dpi=500, height = 35, units = "mm")
 ```
 
 ### Metrics VR (BFMC)
@@ -1809,14 +1757,14 @@ merged_results_2cp <- rbind(results_2cp_2, results_2cp_3)
 #Step 4: Bind all datasets together
 merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
 merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints")
-openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results.xlsx", rowNames =T)
+openxlsx::write.xlsx(merged_comps_bf,file="~/Results.xlsx", rowNames =T)
 
 pvalues_all <- rbind(
   pvals_1cp,
   pvals_intermediate,
   pvals_2cp
 )
-openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_pvals.xlsx", rowNames =T)
+openxlsx::write.xlsx(pvalues_all,file="~/Results_pvals.xlsx", rowNames =T)
 
 
 #Step 5: Create dataframe for manuscript tables
@@ -1833,7 +1781,7 @@ FP =sprintf("%.2f", merged_comps_bf$FP),
 TN =sprintf("%.2f", merged_comps_bf$TN), 
 FN =sprintf("%.2f", merged_comps_bf$FN))
 
-openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_table.xlsx", rowNames =T)
+openxlsx::write.xlsx(table_df,file="~/Results_table.xlsx", rowNames =T)
 
 ```
 
@@ -1842,7 +1790,7 @@ openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/Bio
 ```{r metric fig VR BFPC}
 
 ###1 Cutoff
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -1869,12 +1817,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -1885,10 +1833,9 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_1cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###2 Cutoffs
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -1915,12 +1862,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -1931,7 +1878,6 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Results_2cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###Intermediate plot
 plot_grey <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4, 21:23])
@@ -1951,7 +1897,6 @@ ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "C
         axis.title.x = element_text(size=6),
         axis.title.y= element_text(size=6),
         panel.border = element_rect(linewidth = 0.5, fill = NA, color=NA))  
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Intermediate.pdf",device = "pdf",width = 30, dpi=500, height = 35, units = "mm")
 
 ```
 
@@ -1983,7 +1928,6 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ##CSF
 ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
@@ -1993,7 +1937,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
   geom_hline(yintercept=0.058, linetype="dashed", color="grey20", alpha=.8, linewidth = .35) +
   geom_hline(yintercept=0.072, linetype="dashed", color="grey20", alpha = .8, linewidth = .35) +
   geom_quasirandom(alpha = 0.75, size = 1,shape=21, color="black", stroke=0.25) +
-  #scale_y_continuous(breaks = round(seq(0, 0.1, by = 0.025), 3), limits = c(0, 0.085)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+")) +
   labs(x = "AD status", y = "CSF AB42/40") +
   scale_fill_manual(values = c("#afafaf", "#295dbf"), guide = "none") +
@@ -2003,8 +1946,6 @@ ggplot(df, aes(x = petstat, y = csf_4240, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/CSF_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
-
 
 ```
 
@@ -2058,7 +1999,7 @@ results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], r
 results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
 results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
 openxlsx::write.xlsx(results_delong,
-                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/DELONG_VR.xlsx")
+                     file="~/DELONG_VR.xlsx")
 
 ##AUC plot
 roc_curve2 <- pROC::roc(petstat ~ ptau217, data=df,quiet=T)
@@ -2092,8 +2033,6 @@ ggroc(roc_list) +
   annotate("text", x=0.3, y=0.05, 
            label = sprintf("%.2f (%.2f, %.2f)", auc(roc_curve3), ci.auc(roc_curve3)[1], ci.auc(roc_curve3)[3]),
            size = 2, color = "#295dbf")
-
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/AUC.pdf",device = "pdf",width = 35, dpi=500, height = 35, units = "mm")
 ```
 
 ### Metrics CL24 (BFPC)
@@ -2438,14 +2377,14 @@ merged_results_2cp <- rbind(results_2cp_2, results_2cp_3)
 #Step 4: Bind all datasets together
 merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
 merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints")
-openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results.xlsx", rowNames =T)
+openxlsx::write.xlsx(merged_comps_bf,file="~/Results.xlsx", rowNames =T)
 
 pvalues_all <- rbind(
   pvals_1cp,
   pvals_intermediate,
   pvals_2cp
 )
-openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results_pvals.xlsx", rowNames =T)
+openxlsx::write.xlsx(pvalues_all,file="~/Results_pvals.xlsx", rowNames =T)
 
 
 #Step 5: Create dataframe for manuscript tables
@@ -2462,7 +2401,7 @@ FP =sprintf("%.2f", merged_comps_bf$FP),
 TN =sprintf("%.2f", merged_comps_bf$TN), 
 FN =sprintf("%.2f", merged_comps_bf$FN))
 
-openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results_table.xlsx", rowNames =T)
+openxlsx::write.xlsx(table_df,file="~/Results_table.xlsx", rowNames =T)
 ```
 
 ### Metric figures CL (BFPC)
@@ -2470,7 +2409,7 @@ openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/Bio
 ```{r metric fig CL BFPC}
 
 ###1 Cutoff
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -2497,12 +2436,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -2513,10 +2452,9 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results_1cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###2 Cutoffs
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ###Assemble plot data in way required for plots
@@ -2543,12 +2481,12 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
+            position = position_dodge(width = 0.6), size = 2) +
   scale_color_manual(values=c("#295dbf", "#c52851"), guide="none")+
   scale_fill_manual(values=c("#295dbf", "#c52851"), guide="none")+
   theme_classic()+ 
@@ -2559,7 +2497,6 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Results_2cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ###Intermediate plot
 plot_grey <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4, 21:23])
@@ -2579,8 +2516,6 @@ ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "C
         axis.title.x = element_text(size=6),
         axis.title.y= element_text(size=6),
         panel.border = element_rect(linewidth = 0.5, fill = NA, color=NA))  
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA approach/Centiloids/Intermediate.pdf",device = "pdf",width = 30, dpi=500, height = 35, units = "mm")
-
 ```
 
 ## 
@@ -2591,14 +2526,9 @@ ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/FDA appr
 
 ```{r set up data ADNI}
 #| echo: false
-df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/ADNI_VR2.xlsx")
-df$PL_AB42_c <- 1.119 + 1.114*df$PL_AB42
-#df$PL_217_42 <- (df$ptau217)/(df$Plasma_AB142_pgmL_Lumi)
-df$PL_217_42 <- (df$ptau217)/(df$PL_AB42_c)
-df$PL_217_42_n <- (df$ptau217)/(df$PL_AB42)
+df <- read_xlsx("~/ADNI.xlsx")
 df$CSF_18142 <- ifelse(df$ABETA42 > 1700, (df$PTAU_csf)/1700, (df$PTAU_csf)/df$ABETA42)
-df$cog_stat <- ifelse(df$CDRSB_bl >= 0.5, 1, 0)
-df <- df %>% filter(cog_stat == 1) 
+
 ```
 
 ## 3A. VR outcome
@@ -2625,7 +2555,6 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ggplot(df, aes(x = petstat, y = CSF_18142, fill=petstat)) +
   geom_violin(alpha=0.3) +
@@ -2641,8 +2570,6 @@ ggplot(df, aes(x = petstat, y = CSF_18142, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/ptau181AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ```
 
@@ -2696,7 +2623,7 @@ results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], r
 results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
 results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
 openxlsx::write.xlsx(results_delong,
-                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/DELONG_VR.xlsx")
+                     file="~/DELONG_VR.xlsx")
 
 ##AUC plot
 roc_curve2<- pROC::roc(petstat ~ ptau217, data=df,quiet=T)
@@ -2731,7 +2658,6 @@ ggroc(roc_list) +
            label = sprintf("%.2f (%.2f, %.2f)", auc(roc_curve3), ci.auc(roc_curve3)[1], ci.auc(roc_curve3)[3]),
            size = 2, color = "#ea8a0f")
 
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/AUC.pdf",device = "pdf",width = 35, dpi=500, height = 35, units = "mm")
 
 ```
 
@@ -2873,9 +2799,9 @@ merged_results_1cp <- rbind(results_1cp_2, results_1cp_3)
 #Step 4: Bind all datasets together
 merged_comps_bf <- merged_results_1cp
 merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint")
-openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results.xlsx", rowNames =T)
+openxlsx::write.xlsx(merged_comps_bf,file="~/Results.xlsx", rowNames =T)
 
-openxlsx::write.xlsx(pvals_1cp,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results_pvals.xlsx", rowNames =T)
+openxlsx::write.xlsx(pvals_1cp,file="~/Results_pvals.xlsx", rowNames =T)
 
 
 #Step 5: Create dataframe for manuscript tables
@@ -2892,7 +2818,7 @@ FP =sprintf("%.2f", merged_comps_bf$FP),
 TN =sprintf("%.2f", merged_comps_bf$TN), 
 FN =sprintf("%.2f", merged_comps_bf$FN))
 
-openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results_table.xlsx", rowNames =T)
+openxlsx::write.xlsx(table_df,file="~/Results_table.xlsx", rowNames =T)
 
 ```
 
@@ -2900,7 +2826,7 @@ openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADN
 
 ```{r metric figures VR ADNI}
 ##1 Cutoff
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ##Assemble plot data in way required for plots
@@ -2927,14 +2853,14 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#ea8a0f", "#c52851"), guide="none")+
-  scale_fill_manual(values=c("#ea8a0f", "#c52851"), guide="none")+
+            position = position_dodge(width = 0.6), size = 2) +
+  scale_color_manual(values=c("#4dbbd6", "#c52851"), guide="none")+
+  scale_fill_manual(values=c("#4dbbd6", "#c52851"), guide="none")+
   theme_classic()+ 
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
@@ -2943,7 +2869,6 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Results_1cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
 ```
 
@@ -2973,7 +2898,6 @@ ggplot(df, aes(x = petstat, y = PL_217_42, fill=petstat)) +
         axis.text.x = element_text(size=6),
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/LPptau217AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ggplot(df, aes(x = petstat, y = CSF_18142, fill=petstat)) +
   annotate("rect", xmin = -Inf, xmax = Inf, ymin = 0.02186, ymax = 0.028,
@@ -2985,7 +2909,7 @@ ggplot(df, aes(x = petstat, y = CSF_18142, fill=petstat)) +
   scale_y_continuous(breaks = round(seq(0, 0.115, by = 0.025), 3), limits = c(0, 0.115)) +
   scale_x_discrete(labels=c("0" ="VR-","1" ="VR+")) +
   labs(x = "AD status", y = "CSF p-tau181/AB42") +
-  scale_fill_manual(values = c("#afafaf", "#ea8a0f"), guide = "none") +
+  scale_fill_manual(values = c("#afafaf", "#4dbbd6"), guide = "none") +
   theme_classic() +
   theme(axis.title.x = element_blank(),
         axis.title.y = element_text(size=7),
@@ -2993,7 +2917,6 @@ ggplot(df, aes(x = petstat, y = CSF_18142, fill=petstat)) +
         axis.text.y = element_text(size=6))+
   stat_compare_means(method="t.test", label="p.signif", label.x = 1.5, label.y = 0.04)
 
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/ptau181AB42_Boxplot.pdf",device = "pdf",width = 50, dpi=500, height = 45, units = "mm")
 
 ```
 
@@ -3046,7 +2969,7 @@ results_delong$auc_order <- c(results_delong$auc1a[1],results_delong$auc1a[3], r
 results_delong$auc_order_ci_low <- c(results_delong$auc1_ci_low[1],results_delong$auc1_ci_low[3], results_delong$auc2_ci_low[3])
 results_delong$auc_order_ci_high <- c(results_delong$auc1_ci_high[1],results_delong$auc1_ci_high[3], results_delong$auc2_ci_high[3])
 openxlsx::write.xlsx(results_delong,
-                     file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/DELONG_VR.xlsx")
+                     file="~/DELONG_VR.xlsx")
 
 ##AUC plot
 roc_curve2 <- pROC::roc(petstat ~ ptau217, data=df,quiet=T)
@@ -3059,7 +2982,7 @@ auc3 <- auc(roc_curve3)
 roc_list <- list(roc_curve1, roc_curve2, roc_curve3)
 
 ggroc(roc_list) +
-  scale_color_manual(values = c("#c52851", "#4ca481", "#ea8a0f"), 
+  scale_color_manual(values = c("#c52851", "#4ca481", "#4dbbd6"), 
                      labels = c("Plasma p-tau217/AB42", "Plasma p-tau217", "CSF p-tau181/AB42"), guide="none") +
   labs(title = element_blank(), x = "Specificity", y = "Sensitivity", color = "Assay") +
   scale_x_reverse()+
@@ -3079,9 +3002,8 @@ ggroc(roc_list) +
            size = 2, color = "#4ca481")+
   annotate("text", x=0.3, y=0.05, 
            label = sprintf("%.2f (%.2f, %.2f)", auc(roc_curve3), ci.auc(roc_curve3)[1], ci.auc(roc_curve3)[3]),
-           size = 2, color = "#ea8a0f")
+           size = 2, color = "#4dbbd6")
 
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/AUC.pdf",device = "pdf",width = 35, dpi=500, height = 35, units = "mm")
 ```
 
 ### Metrics CL24 (ADNI)
@@ -3423,14 +3345,14 @@ merged_results_2cp <- rbind(results_2cp_2, results_2cp_3)
 #Step 4: Bind all datasets together
 merged_comps_bf <- rbind(merged_results_1cp, merged_results_2cp)
 merged_comps_bf$Cutpoints <- c("1 Cutpoint","1 Cutpoint","2 Cutpoints","2 Cutpoints")
-openxlsx::write.xlsx(merged_comps_bf,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results.xlsx", rowNames =T)
+openxlsx::write.xlsx(merged_comps_bf,file="~/Results.xlsx", rowNames =T)
 
 pvalues_all <- rbind(
   pvals_1cp,
   pvals_intermediate,
   pvals_2cp
 )
-openxlsx::write.xlsx(pvalues_all,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results_pvals.xlsx", rowNames =T)
+openxlsx::write.xlsx(pvalues_all,file="~/Results_pvals.xlsx", rowNames =T)
 
 
 
@@ -3448,14 +3370,14 @@ FP =sprintf("%.2f", merged_comps_bf$FP),
 TN =sprintf("%.2f", merged_comps_bf$TN), 
 FN =sprintf("%.2f", merged_comps_bf$FN))
 
-openxlsx::write.xlsx(table_df,file="~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results_table.xlsx", rowNames =T)
+openxlsx::write.xlsx(table_df,file="~/Results_table.xlsx", rowNames =T)
 ```
 
 ### Metric figures CL (ADNI)
 
 ```{r metric figures CL ADNI}
 ##1 Cutoff
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results.xlsx")
+merged_comps_bf <- read_xlsx("~/Results.xlsx")
 merged_comps_bf <- merged_comps_bf[,2:24]
 
 ##Assemble plot data in way required for plots
@@ -3482,14 +3404,14 @@ tick_positions <- seq(70, 100, by = 10)
 ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
   geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
   geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
+                width = 0, linewidth = 0.75, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 1.75, stroke = 0.7)+
   scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
   labs(x = "Percentage", y = "") +
   geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#ea8a0f", "#c52851"), guide="none")+
-  scale_fill_manual(values=c("#ea8a0f", "#c52851"), guide="none")+
+            position = position_dodge(width = 0.6), size = 2) +
+  scale_color_manual(values=c("#4dbbd6", "#c52851"), guide="none")+
+  scale_fill_manual(values=c("#4dbbd6", "#c52851"), guide="none")+
   theme_classic()+ 
   theme(axis.text.x = element_text(size = 7,color="grey30"),
         axis.text.y = element_text(size = 7, color="black"),
@@ -3498,72 +3420,6 @@ ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1
         legend.text = element_text(size = 6,color="black"),  
         legend.title = element_blank(), 
         legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results_1cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
 
-##2 Cutoffs
-merged_comps_bf <- read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results.xlsx")
-merged_comps_bf <- merged_comps_bf[,2:24]
-
-##Assemble plot data in way required for plots
-plot_acc <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4,2:4])
-colnames(plot_acc) <- c("Method", "Measure1", "ci_low", "ci_high")
-plot_acc$Measure <- c("Accuracy", "Accuracy")
-
-plot_ppv <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4,5:7])
-colnames(plot_ppv) <- c("Method", "Measure1", "ci_low", "ci_high")
-plot_ppv$Measure <- c("PPV", "PPV")
-
-plot_npv <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4,8:10])
-colnames(plot_npv) <- c("Method", "Measure1", "ci_low", "ci_high")
-plot_npv$Measure <- c("NPV", "NPV")
-
-plotdata <- rbind(plot_acc, plot_ppv, plot_npv)
-plotdata1 <- plotdata
-plotdata1$Method2 <- as.factor(c("2", "1"))
-
-group_order <- c("NPV", "PPV", "Accuracy")
-tick_positions <- seq(70, 100, by = 10)
-
-#Forest plot Acc, PPV, NPV
-ggplot(data=plotdata1, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, color=Method2, fill=Method2))+
-  geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
-  geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
-                width = 0, linewidth = 0.75, position = position_dodge(width = 0.8)) +
-  geom_point(position = position_dodge(width = 0.8), size = 1.75, stroke = 0.7)+
-  scale_x_continuous(limits=c(70,110),breaks = seq(70,110, by=10),expand =c(0,0))+
-  labs(x = "Percentage", y = "") +
-  geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100), group=Method2, x=106),
-            position = position_dodge(width = 0.8), size = 2) +
-  scale_color_manual(values=c("#ea8a0f", "#c52851"), guide="none")+
-  scale_fill_manual(values=c("#ea8a0f", "#c52851"), guide="none")+
-  theme_classic()+ 
-  theme(axis.text.x = element_text(size = 7,color="grey30"),
-        axis.text.y = element_text(size = 7, color="black"),
-        axis.title.x = element_text(size = 7,color="black"),
-        axis.ticks.y = element_blank(),
-        legend.text = element_text(size = 6,color="black"),  
-        legend.title = element_blank(), 
-        legend.position = "bottom")
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Results_2cp.pdf",device = "pdf",width = 50, dpi=500, height = 40, units = "mm")
-
-##Intermediate plot
-plot_grey <- cbind(merged_comps_bf[3:4, 1], merged_comps_bf[3:4, 21:23])
-colnames(plot_grey) <- c("Method", "Measure1", "ci_low", "ci_high")
-group_order <- c("Plasma p-tau217/AB42", "CSF p-tau181/AB42")
-
-ggplot(data=plot_grey, aes(x=factor(Method,levels = c("Plasma p-tau217/AB42", "CSF p-tau181/AB42")),y=Measure1, fill=factor(Method, levels = c("Plasma p-tau217/AB42", "CSF p-tau181/AB42"))))+
-  geom_bar(color="black",stat = "identity", alpha=0.8, width=0.6,  position = position_dodge(width = 0.1),)+
-  geom_errorbar(aes(x=factor(Method,level = c("Plasma p-tau217/AB42", "CSF p-tau181/AB42")), ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
-  scale_y_continuous(limits=c(0,40),breaks = seq(0,40, by=10),expand =c(0,0))+
-  geom_text(aes(label = sprintf("%.1f", Measure1)), position = position_dodge(width=0.75), vjust=-3, size = 2) +
-  scale_fill_manual(values = c("#c52851", "#ea8a0f"), guide="none") +
-  labs(title = element_blank(),x = "",y = "Intermediate values (%)") +
-  theme_classic()+
-  theme(axis.text.y = element_text(size=6),
-        axis.text.x = element_text(size=6),
-        axis.title.x = element_text(size=6),
-        axis.title.y= element_text(size=6),
-        panel.border = element_rect(linewidth = 0.5, fill = NA, color=NA))  
-ggsave("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/FDA approach/Centiloids/Intermediate_VR.pdf",device = "pdf",width = 30, dpi=500, height = 35, units = "mm")
 
 ```
