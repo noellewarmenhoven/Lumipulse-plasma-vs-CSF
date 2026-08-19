@@ -18,7 +18,10 @@ library(see)
 #Load datasets----
 
 ##BF
-bf <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/LP_PlasmaCSF_230226.xlsx")
+df <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/df.xlsx")
+df_og <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/df.xlsx")
+bf <- df %>% filter(sid_diag %in% df_og$sid_diag)
+
 names(bf)[names(bf) == "PL_pTau217_pgml_Lumipulse"] <- "ptau217"
 bf$ptau217 <- as.numeric(as.character(bf$ptau217))
 names(bf)[names(bf) == "csf_clinical_routine_Abeta42_40_ratio_x10"] <- "csf_4240"
@@ -29,19 +32,18 @@ bf <- bf %>% drop_na(csf_4240, ptau217)
 bf$petstat_CL <- as.factor(ifelse(bf$CL_fnc_ber_com_composite >= 24, 1, 0)) 
 
 ###BF-MC
-df.val <- bf %>% filter(bf$Study.y %in% "VALIDATE")
+df.val <- bf %>% filter(bf$Study.y %in% "v")
 
 ###BF-PC
-df.ad <- bf %>% filter(bf$Study.y %in% "ADetect")
+df.ad <- bf %>% filter(bf$Study.y %in% "A")
 
 ##ADNI
-adni <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/ADNI_VR2.xlsx")
-adni$PL_217_42 <- (adni$ptau217)/(adni$PL_AB42) #PL_AB42_c
+adni <- read_xlsx("~/Documents/Projects/LP vs CSF/Data/adni.xlsx")
+adni$PL_217_42 <- (adni$ptau217)/(adni$PL_AB42)
 adni$CSF_18142 <- ifelse(adni$ABETA42 > 1700, (adni$PTAU_csf)/1700, (adni$PTAU_csf)/adni$ABETA42)
 adni$cog_stat <- ifelse(adni$CDRSB_bl >= 0.5, 1, 0)
 adni <- adni %>% filter(cog_stat == 1) 
 adni$petstat_CL <- as.factor(ifelse(adni$CENTILOIDS >= 24, 1, 0)) 
-
 
 
 
@@ -134,8 +136,8 @@ auc_calc(
   df = df.val, 
   pet_status = "VR_overall",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/DeLong_BFMC_VR.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/AUC_BFMC_VR.pdf",
+  output_xlsx = "~/BioFINDER/MC/DeLong_BFMC_VR.xlsx",
+  output_pdf = "~/BioFINDER/MC/Test/AUC_BFMC_VR.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
@@ -144,8 +146,8 @@ auc_calc(
   df = df.ad, 
   pet_status = "VR_overall",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/DeLong_BFPC_VR.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/AUC_BFPC_VR.pdf",
+  output_xlsx = "~/BioFINDER/Primary care/DeLong_BFPC_VR.xlsx",
+  output_pdf = "~/BioFINDER/Primary care/AUC_BFPC_VR.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
@@ -154,8 +156,8 @@ auc_calc(
   df = adni, 
   pet_status = "VR",
   csf_marker = "CSF_18142", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/DeLong_ADNI_VR.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/AUC_ADNI_VR.pdf",
+  output_xlsx = "~/ADNI/DeLong_ADNI_VR.xlsx",
+  output_pdf = "~/ADNI/AUC_ADNI_VR.pdf",
   marker_colors = c("#4ca481", "#c52851", "#4ebbd6"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42")
 )
@@ -176,8 +178,8 @@ dta_calc <- function(df, pet_status, csf_marker, csf_pos_cutoff, csf_pos2_cutoff
   df$ptau217ab42_neg <- ifelse(df$PL_217_42 <= 0.00370, 0, 1)
   
   df$ptau217_pos <- ifelse(df$ptau217 >= 0.278, 1, 0) 
-  df$ptau217_neg <- ifelse(df$ptau217 <= 0.161, 0, 1)
-  df$ptau217_pos1 <- ifelse(df$ptau217 <= 0.201, 0, 1)
+  df$ptau217_neg <- ifelse(df$ptau217 <= 0.162, 0, 1)
+  df$ptau217_pos1 <- ifelse(df$ptau217 < 0.201, 0, 1)
   
   
   if(csf_direction == "lower"){
@@ -363,13 +365,13 @@ dta_calc <- function(df, pet_status, csf_marker, csf_pos_cutoff, csf_pos2_cutoff
     
     ##Calculate pvalue %intermediate differences
     stat_indices_grey <- list(
-      "Int% pval p-tau217/AB42 vs. p-tau217" = 4 , 
-      "Int% pval p-tau217/AB42 vs. CSF" = 5, 
-      "Int% pval p-tau217 vs.CSF" = 6)
+      "Int% pval p-tau217 vs. p-tau217/AB42" = 4 , 
+      "Int% pval p-tau217 vs. CSF" = 5, 
+      "Int% pval p-tau217/AB42 vs.CSF" = 6)
     
     pvals_intermediate <- data.frame(
       Pval = numeric(length(stat_indices_grey)),
-      row.names = c("Int% pval p-tau217/AB42 vs. p-tau217","Int% pval p-tau217/AB42 vs. CSF","Int% pval p-tau217 vs.CSF"))
+      row.names = c("Int% pval p-tau217 vs. p-tau217/AB42","Int% pval p-tau217 vs. CSF","Int% pval p-tau217/AB42 vs.CSF"))
     
     bootstrap_replicates_grey <- boot_grey$t
     
@@ -403,7 +405,7 @@ dta_calc <- function(df, pet_status, csf_marker, csf_pos_cutoff, csf_pos2_cutoff
       
       r1 <- compute_2cp(d, "greyzone_ptau217", "ptau217_pos")
       r2 <- compute_2cp(d, "greyzone_ptau217ab42", "ptau217ab42_pos")
-      r3 <- compute_2cp(d, "greyzone_csf", "csf_pos")
+      r3 <- compute_2cp(d, "greyzone_csf", "csf_pos2")
       
       #metrics & differences between them
       c(r1["acc"], r2["acc"], r3["acc"], #3
@@ -485,10 +487,10 @@ dta_calc <- function(df, pet_status, csf_marker, csf_pos_cutoff, csf_pos2_cutoff
       )
     }
     
-    results_1cp_1 <- create_df_2cp(method_name = "Plasma p-tau217",1,4,7,10,13,16,19,22,25,1)
-    results_1cp_2 <- create_df_2cp(method_name = "Plasma p-tau217/AB42",2,5,8,11,14,17,20,23,26,2)
-    results_1cp_3 <- create_df_2cp(method_name = "CSF", 3,6,9,12,15,18,21,24,27,3)
-    merged_results_2cp <- rbind(results_1cp_1, results_1cp_2, results_1cp_3)
+    results_2cp_1 <- create_df_2cp(method_name = "Plasma p-tau217",1,4,7,10,13,16,19,22,25,1)
+    results_2cp_2 <- create_df_2cp(method_name = "Plasma p-tau217/AB42",2,5,8,11,14,17,20,23,26,2)
+    results_2cp_3 <- create_df_2cp(method_name = "CSF", 3,6,9,12,15,18,21,24,27,3)
+    merged_results_2cp <- rbind(results_2cp_1, results_2cp_2, results_2cp_3)
   }
   
   #             COMBINE
@@ -533,9 +535,9 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_table.xlsx"
+  output_xlsx = "~/BioFINDER/MC/Res_VR.xlsx",
+  output_pval_xlsx = "~/BioFINDER/MC/Res_VR_pval.xlsx",
+  output_table_xlsx = "~/MC/Res_VR_table.xlsx"
 )
 
 dta_calc(
@@ -544,9 +546,9 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_table.xlsx"
+  output_xlsx = "~/BioFINDER/Primary care/Res_VR.xlsx",
+  output_pval_xlsx = "~/Primary care/Res_VR_pval.xlsx",
+  output_table_xlsx = "~/Primary care/Res_VR_table.xlsx"
 )
 
 dta_calc(
@@ -556,9 +558,9 @@ dta_calc(
   csf_pos_cutoff = 0.028,
   csf_pos2_cutoff = NULL,
   csf_direction = "upper",
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR_table.xlsx"
+  output_xlsx = "~/ADNI/Res_VR.xlsx",
+  output_pval_xlsx = "~/ADNI/Res_VR_pval.xlsx",
+  output_table_xlsx = "~/ADNI/Res_VR_table.xlsx"
 )
 
 
@@ -616,17 +618,17 @@ create_plot_1cp <- function(df, csf_color, output_pdf){
 
 
 
-create_plot_1cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR.xlsx"),
+create_plot_1cp(df = read_xlsx("~/BioFINDER/MC/Res_VR.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate//Test/Res_1cp.pdf")
+                output_pdf = "~/BioFINDER/MC//Res_1cp.pdf")
 
-create_plot_1cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR.xlsx"),
+create_plot_1cp(df = read_xlsx("~/BioFINDER/Primary care/Res_VR.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_1cp.pdf")
+                output_pdf = "~/BioFINDER/Primary care/Res_1cp.pdf")
 
-create_plot_1cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR.xlsx"),
+create_plot_1cp(df = read_xlsx("~/ADNI/Res_VR.xlsx"),
                 csf_color = "#4ebbd6", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_1cp.pdf")
+                output_pdf = "~/ADNI/Res_1cp.pdf")
 
 
 ##2CP plot----
@@ -711,20 +713,21 @@ create_plot_2cp <- function(df, csf_color, output_pdf, output_pdf_grey){
 }
 
 
-create_plot_2cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR.xlsx"),
+create_plot_2cp(df = read_xlsx("~/BioFINDER/MC/Res_VR.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate//Test/Res_1cp.pdf",
-                output_pdf_grey = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_grey.pdf")
+                output_pdf = "~/BioFINDER/MC//Res_1cp.pdf",
+                output_pdf_grey = "~/BioFINDER/MC/Res_grey.pdf")
 
-create_plot_2cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR.xlsx"),
+create_plot_2cp(df = read_xlsx("~/BioFINDER/Primary care/Res_VR.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_1cp.pdf",
-                output_pdf_grey = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_grey.pdf")
+                output_pdf = "~/BioFINDER/Primary care/Res_1cp.pdf",
+                output_pdf_grey = "~/BioFINDER/Primary care/Res_grey.pdf")
+
 
 
 ----------------------- #2. Comparing within-cohort cutoffs in each cohort ----------------------
 
-#2B. Diagnostic accuracy data, comparisons within----
+#2A. Diagnostic accuracy data, comparisons within----
 
 dta_calc_within <- function(df, pet_status, 
                             ptau217_spec90_cutoff, ptau217_spec95_cutoff, ptau217_sens95_cutoff,
@@ -749,11 +752,6 @@ dta_calc_within <- function(df, pet_status,
   df$ptau217ab42_spec90 <- ifelse(df$PL_217_42 > ptau217ab42_spec90_cutoff, 1, 0)
   df$ptau217ab42_spec95 <- ifelse(df$PL_217_42 > ptau217ab42_spec95_cutoff, 1, 0)
   
-  
-  df$csf_spec90 <- ifelse(df$csf_4240 < 0.055, 1, 0) 
-  df$csf_spec95 <- ifelse(df$csf_4240 < 0.051, 1, 0)
-  df$csf_sens95 <- ifelse(df$csf_4240 < 0.066, 1, 0)
-  
   # CSF direction varies per cohort
   if(csf_direction == "lower") {
     df$csf_sens95 <- ifelse(df[[csf_marker]] < csf_sens95_cutoff, 1, 0)
@@ -764,7 +762,6 @@ dta_calc_within <- function(df, pet_status,
     df$csf_spec90 <- ifelse(df[[csf_marker]] > csf_spec90_cutoff, 1, 0)
     df$csf_spec95 <- ifelse(df[[csf_marker]] > csf_spec95_cutoff, 1, 0)
   }
-  
   
   
   ##Function to calculate DTA
@@ -916,13 +913,10 @@ dta_calc_within <- function(df, pet_status,
           csf_sens95 == 0 ~ 1, csf_spec95 == 1 ~ 3, TRUE ~ 2)
       )
       
-      int_1 <- length(d$greyzone_ptau217 == 2)
       int_perc1 <- round((length(which(d$greyzone_ptau217 == 2)) / nrow(d)) * 100,3)
       
-      int_2 <- length(d$greyzone_ptau217ab42 == 2)
       int_perc2 <- round((length(which(d$greyzone_ptau217ab42 == 2)) / nrow(d)) * 100,3)
       
-      int_3 <- length(d$greyzone_csf == 2)
       int_perc3 <- round((length(which(d$greyzone_csf == 2)) / nrow(d)) * 100,3)
       
       return(c(int_perc1, int_perc2, int_perc3, 
@@ -934,13 +928,13 @@ dta_calc_within <- function(df, pet_status,
     
     ##Calculate pvalue %intermediate differences
     stat_indices_grey <- list(
-      "Int% pval p-tau217/AB42 vs. p-tau217" = 4 , 
-      "Int% pval p-tau217/AB42 vs. CSF" = 5, 
-      "Int% pval p-tau217 vs.CSF" = 6)
+      "Int% pval p-tau217 vs. p-tau217/AB42" = 4 , 
+      "Int% pval p-tau217 vs. CSF" = 5, 
+      "Int% pval p-tau217/AB42 vs.CSF" = 6)
     
     pvals_intermediate <- data.frame(
       Pval = numeric(length(stat_indices_grey)),
-      row.names = c("Int% pval p-tau217/AB42 vs. p-tau217","Int% pval p-tau217/AB42 vs. CSF","Int% pval p-tau217 vs.CSF"))
+      row.names = c("Int% pval p-tau217  vs. p-tau217/AB42","Int% pval p-tau217 vs. CSF","Int% pval p-tau217/AB42 vs.CSF"))
     
     bootstrap_replicates_grey <- boot_grey$t
     
@@ -972,9 +966,9 @@ dta_calc_within <- function(df, pet_status,
         compute_metrics(dx$petstat, dx[[pred_col]])
       }
       
-      r1 <- compute_2cp(d, "greyzone_ptau217", "ptau217_spec90")
-      r2 <- compute_2cp(d, "greyzone_ptau217ab42", "ptau217ab42_spec90")
-      r3 <- compute_2cp(d, "greyzone_csf", "csf_spec90")
+      r1 <- compute_2cp(d, "greyzone_ptau217", "ptau217_spec95")
+      r2 <- compute_2cp(d, "greyzone_ptau217ab42", "ptau217ab42_spec95")
+      r3 <- compute_2cp(d, "greyzone_csf", "csf_spec95")
       
       #metrics & differences between them
       c(r1["acc"], r2["acc"], r3["acc"], #3
@@ -1052,14 +1046,14 @@ dta_calc_within <- function(df, pet_status,
         intermediate_n_percentage_low = round(quantile(boot_grey$t[, grey_index], c(0.025, 0.975), na.rm=T)[1], 3),
         intermediate_n_percentage_high = round(quantile(boot_grey$t[, grey_index], c(0.025, 0.975), na.rm=T)[2], 3),
         stringsAsFactors = FALSE,
-        row.names = "1 Cutpoint"
+        row.names = "2 Cutpoints"
       )
     }
     
-    results_1cp_1 <- create_df_2cp(method_name = "Plasma p-tau217",1,4,7,10,13,16,19,22,25,1)
-    results_1cp_2 <- create_df_2cp(method_name = "Plasma p-tau217/AB42",2,5,8,11,14,17,20,23,26,2)
-    results_1cp_3 <- create_df_2cp(method_name = "CSF", 3,6,9,12,15,18,21,24,27,3)
-    merged_results_2cp <- rbind(results_1cp_1, results_1cp_2, results_1cp_3)
+    results_2cp_1 <- create_df_2cp(method_name = "Plasma p-tau217",1,4,7,10,13,16,19,22,25,1)
+    results_2cp_2 <- create_df_2cp(method_name = "Plasma p-tau217/AB42",2,5,8,11,14,17,20,23,26,2)
+    results_2cp_3 <- create_df_2cp(method_name = "CSF", 3,6,9,12,15,18,21,24,27,3)
+    merged_results_2cp <- rbind(results_2cp_1, results_2cp_2, results_2cp_3)
   }
   
   
@@ -1101,33 +1095,196 @@ dta_calc_within <- function(df, pet_status,
 dta_calc_within(
   df = df.val,
   pet_status = "VR_overall",
-  ptau217_spec90_cutoff = 0.253, ptau217_spec95_cutoff = 0.310, ptau217_sens95_cutoff  = 0.190, 
-  ptau217ab42_spec90_cutoff = 0.009, ptau217ab42_spec95_cutoff = 0.011,ptau217ab42_sens95_cutoff = 0.007,
-  csf_spec90_cutoff = 0.055, csf_spec95_cutoff = 0.051, csf_sens95_cutoff = 0.066, csf_marker = "csf_4240", csf_direction = "lower",
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_Within.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_pval_Within.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_table_Within.xlsx")
+  ptau217_spec90_cutoff = 0.2575, ptau217_spec95_cutoff = 0.3215, ptau217_sens95_cutoff  = 0.1855, 
+  ptau217ab42_spec90_cutoff = 0.009066306, ptau217ab42_spec95_cutoff = 0.011502177,ptau217ab42_sens95_cutoff = 0.006632187,
+  csf_spec90_cutoff = 0.053, csf_spec95_cutoff = 0.047, csf_sens95_cutoff = 0.067, csf_marker = "csf_4240", csf_direction = "lower",
+  output_xlsx = "~/BioFINDER/MC/Res_VR_Within.xlsx",
+  output_pval_xlsx = "~/BioFINDER/MC/Res_VR_pval_Within.xlsx",
+  output_table_xlsx = "~/BioFINDER/MC/Res_VR_table_Within.xlsx")
 
 dta_calc_within(
   df = df.ad,
   pet_status = "VR_overall",
-  ptau217_spec90_cutoff = 0.253, ptau217_spec95_cutoff = 0.310, ptau217_sens95_cutoff  = 0.190, 
-  ptau217ab42_spec90_cutoff = 0.009, ptau217ab42_spec95_cutoff = 0.011,ptau217ab42_sens95_cutoff = 0.007,
-  csf_spec90_cutoff = 0.055, csf_spec95_cutoff = 0.051, csf_sens95_cutoff = 0.066, csf_marker = "csf_4240", csf_direction = "lower",
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_Within.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_pval_Within.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_table_Within.xlsx")
+  ptau217_spec90_cutoff = 0.2575, ptau217_spec95_cutoff = 0.3215, ptau217_sens95_cutoff  = 0.1855, 
+  ptau217ab42_spec90_cutoff = 0.009066306, ptau217ab42_spec95_cutoff = 0.011502177,ptau217ab42_sens95_cutoff = 0.006632187,
+  csf_spec90_cutoff = 0.053, csf_spec95_cutoff = 0.047, csf_sens95_cutoff = 0.067, csf_marker = "csf_4240", csf_direction = "lower",
+  output_xlsx = "~/BioFINDER/Primary care/Res_VR_Within.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Primary care/Res_VR_pval_Within.xlsx",
+  output_table_xlsx = "~/BioFINDER/Primary care/Res_VR_table_Within.xlsx")
 
 dta_calc_within(
   df = adni,
   pet_status = "VR",
-  ptau217_spec90_cutoff = 0.17, ptau217_spec95_cutoff = 0.20, ptau217_sens95_cutoff  = 0.09, 
-  ptau217ab42_spec90_cutoff = 0.007, ptau217ab42_spec95_cutoff = 0.009,ptau217ab42_sens95_cutoff = 0.003,
-  csf_spec90_cutoff = 0.019, csf_spec95_cutoff = 0.022, csf_sens95_cutoff = 0.021, csf_marker = "CSF_18142", csf_direction = "upper",
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR_Within.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR_pval_Within.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_VR_table_Within.xlsx")
+  ptau217_spec90_cutoff = 0.183, ptau217_spec95_cutoff = 0.206, ptau217_sens95_cutoff  = 0.138, 
+  ptau217ab42_spec90_cutoff = 0.0076358, ptau217ab42_spec95_cutoff = 0.0091556, ptau217ab42_sens95_cutoff = 0.00540893,
+  csf_spec90_cutoff = 0.02054134, csf_spec95_cutoff = 0.02787793, csf_sens95_cutoff = 0.02401862, csf_marker = "CSF_18142", csf_direction = "upper",
+  output_xlsx = "~/ADNI/Res_VR_Within.xlsx",
+  output_pval_xlsx = "~/ADNI/Res_VR_pval_Within.xlsx",
+  output_table_xlsx = "~/ADNI/Res_VR_table_Within.xlsx")
 
+#2B. Figures within cohort----
+
+##1CP plot----
+create_plot_1cp <- function(df, csf_color, output_pdf){
+  
+  make_plot_data <- function(rows, cols, measure_name) {
+    d <- cbind(df[rows, "method"], df[rows, cols])
+    colnames(d) <- c("Method", "Measure1", "ci_low", "ci_high")
+    d$Measure <- measure_name
+    d
+  }
+  
+  plotdata <- rbind(
+    make_plot_data(1:3, c("accuracy", "acc_ci_lower", "acc_ci_upper"), "Accuracy"),
+    make_plot_data(1:3, c("PPV", "ppv_ci_lower", "ppv_ci_upper"), "PPV"),
+    make_plot_data(1:3, c("NPV", "npv_ci_lower", "npv_ci_upper"), "NPV")
+  )
+  
+  plotdata$Method2 <- as.factor(c("1", "2", "3"))
+  
+  
+  group_order <- c("NPV", "PPV", "Accuracy")
+  method_order <- c("3", "2", "1")
+  tick_positions <- seq(40, 100, by = 10)
+  colors <- c("1" = "#4ca481", "2" = "#c52851", "3" = csf_color)
+  
+  
+  #Forest plot Acc, PPV, NPV
+  p1 <- ggplot(data=plotdata, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, 
+                                  color=factor(Method2, levels=method_order), fill=factor(Method2, levels=method_order)))+
+    geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
+    geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
+                  width = 0, linewidth = 1.05, position = position_dodge(width = 0.6)) +
+    geom_point(position = position_dodge(width = 0.6), size = 2, stroke = 0.7)+
+    scale_x_continuous(limits=c(50,110),breaks = seq(50,100, by=10),expand =c(0,0))+
+    labs(x = "Percentage", y = "") +
+    geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100),
+                  group=factor(Method2, levels=method_order), x=106), position = position_dodge(width = 0.6), size = 2) +
+    scale_color_manual(values=colors, guide="none")+
+    scale_fill_manual(values=colors, guide="none")+
+    theme_classic() + 
+    theme(axis.text.x = element_text(size = 7,color="grey30"),
+          axis.text.y = element_text(size = 7, color="black"),
+          axis.title.x = element_text(size = 7,color="black"),
+          axis.ticks.y = element_blank(),
+          legend.text = element_text(size = 6,color="black"),  
+          legend.title = element_blank(), 
+          legend.position = "bottom")
+  
+  ggsave(output_pdf, p1, device = "pdf",width = 60, dpi=500, height = 52, units = "mm")
+}
+
+
+
+create_plot_1cp(df = read_xlsx("~/BioFINDER/MC/Res_VR_Within.xlsx"),
+                csf_color = "#295dbf", 
+                output_pdf = "~/BioFINDER/MC/Res_1cp_within.pdf")
+
+create_plot_1cp(df = read_xlsx("~/BioFINDER/Primary care/Res_VR_Within.xlsx"),
+                csf_color = "#295dbf", 
+                output_pdf = "~/BioFINDER/Primary care/Res_1cp_within.pdf")
+
+create_plot_1cp(df = read_xlsx("~/ADNI/Res_VR_Within.xlsx"),
+                csf_color = "#4ebbd6", 
+                output_pdf = "~/ADNI/Res_1cp.pdf")
+
+
+##2CP plot----
+create_plot_2cp <- function(df, csf_color, output_pdf, output_pdf_grey){
+  
+  make_plot_data <- function(rows, cols, measure_name) {
+    d <- cbind(df[rows, "method"], df[rows, cols])
+    colnames(d) <- c("Method", "Measure1", "ci_low", "ci_high")
+    d$Measure <- measure_name
+    d
+  }
+  
+  plotdata <- rbind(
+    make_plot_data(4:6, c("accuracy", "acc_ci_lower", "acc_ci_upper"), "Accuracy"),
+    make_plot_data(4:6, c("PPV", "ppv_ci_lower", "ppv_ci_upper"), "PPV"),
+    make_plot_data(4:6, c("NPV", "npv_ci_lower", "npv_ci_upper"), "NPV")
+  )
+  
+  plotdata$Method2 <- as.factor(c("1", "2", "3"))
+  
+  
+  group_order <- c("NPV", "PPV", "Accuracy")
+  method_order <- c("3", "2", "1")
+  tick_positions <- seq(40, 100, by = 10)
+  colors <- c("1" = "#4ca481", "2" = "#c52851", "3" = csf_color)
+  
+  
+  #Forest plot Acc, PPV, NPV
+  p1 <- ggplot(data=plotdata, aes(y = factor(Measure, levels=group_order), x = Measure1 * 100, 
+                                  color=factor(Method2, levels=method_order), fill=factor(Method2, levels=method_order)))+
+    geom_vline(xintercept = tick_positions, color = "grey80", linewidth = 0.5, alpha=0.4) +
+    geom_errorbar(aes(xmin = ci_low * 100, xmax = ci_high * 100),
+                  width = 0, linewidth = 1.05, position = position_dodge(width = 0.6)) +
+    geom_point(position = position_dodge(width = 0.6), size = 2, stroke = 0.7)+
+    scale_x_continuous(limits=c(50,110),breaks = seq(50,100, by=10),expand =c(0,0))+
+    labs(x = "Percentage", y = "") +
+    geom_text(aes(label = sprintf("%.f (%.f-%.f)", Measure1 * 100, ci_low * 100, ci_high * 100),
+                  group=factor(Method2, levels=method_order), x=106), position = position_dodge(width = 0.6), size = 2) +
+    scale_color_manual(values=colors, guide="none")+
+    scale_fill_manual(values=colors, guide="none")+
+    theme_classic() + 
+    theme(axis.text.x = element_text(size = 7,color="grey30"),
+          axis.text.y = element_text(size = 7, color="black"),
+          axis.title.x = element_text(size = 7,color="black"),
+          axis.ticks.y = element_blank(),
+          legend.text = element_text(size = 6,color="black"),  
+          legend.title = element_blank(), 
+          legend.position = "bottom")
+  
+  ggsave(output_pdf, p1, device = "pdf",width = 60, dpi=500, height = 52, units = "mm")
+  
+  
+  #Intermediate plot
+  plot_grey <- data.frame(
+    Method = df$method[4:6],
+    Measure1 = df$intermediate_n_percentage[4:6],
+    ci_low = df$intermediate_n_percentage_low[4:6],
+    ci_high = df$intermediate_n_percentage_high[4:6]
+  )
+  
+  method_levels <- plot_grey$Method
+  colors <- c("Plasma p-tau217" = "#4ca481", "Plasma p-tau217/AB42" = "#c52851", "CSF" = csf_color)
+  
+  
+  grey <- ggplot(data=plot_grey, aes(x=factor(Method,levels = method_levels),y=Measure1, 
+                                     fill=factor(Method, levels = method_levels)))+
+    geom_bar(color="black",stat = "identity", alpha=0.8, width=0.6,  position = position_dodge(width = 0.1),)+
+    geom_errorbar(aes(x=factor(Method,level = method_levels), 
+                      ymax = ci_high, ymin = ci_low),width=0.2, size =0.5,position=position_dodge(0.1),  color="black")+
+    scale_y_continuous(limits=c(0,60),breaks = seq(0,60, by=10),expand =c(0,0))+
+    geom_text(aes(label = sprintf("%.1f", Measure1)), position = position_dodge(width=0.75),
+              vjust=-3, size = 2) +
+    scale_fill_manual(values = colors, guide="none") +
+    labs(title = element_blank(),x = "",y = "Intermediate values (%)") +
+    theme_classic()+
+    theme(axis.text.x = element_blank(),
+          axis.text.y = element_text(size=6),
+          axis.title.x = element_text(size=7),
+          axis.title.y= element_text(size=7),
+          panel.border = element_rect(linewidth = 0.5, fill = NA, color=NA))  
+  ggsave(output_pdf_grey, grey, device = "pdf",width = 40, dpi=500, height = 40, units = "mm")
+}
+
+
+create_plot_2cp(df = read_xlsx("~/BioFINDER/MC/Res_VR_Within.xlsx"),
+                csf_color = "#295dbf", 
+                output_pdf = "~/BioFINDER/MC/Res_2cp_within.pdf",
+                output_pdf_grey = "~/BioFINDER/MC/Res_grey.pdf")
+
+create_plot_2cp(df = read_xlsx("~/BioFINDER/Primary care/Res_VR_Within.xlsx"),
+                csf_color = "#295dbf", 
+                output_pdf = "~/BioFINDER/Primary care/Res_2cp_within.pdf",
+                output_pdf_grey = "~/BioFINDER/Primary care/Res_grey.pdf")
+
+create_plot_2cp(df = read_xlsx("~/ADNI/Res_VR_Within.xlsx"),
+                csf_color = "#4ebbd6", 
+                output_pdf = "~/ADNI/Res_2cp_within.pdf",
+                output_pdf_grey = "~/ADNI/Res_grey.pdf")
 
 ----------------------- #3. CENTILOID status ----------------------
 
@@ -1136,8 +1293,8 @@ auc_calc(
   df = df.val, 
   pet_status = "petstat_CL",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/DeLong_BFMC_CL.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/AUC_BFMC_CL.pdf",
+  output_xlsx = "~/BioFINDER/MC/DeLong_BFMC_CL.xlsx",
+  output_pdf = "~/BioFINDER/MC/AUC_BFMC_CL.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
@@ -1146,8 +1303,8 @@ auc_calc(
   df = df.ad, 
   pet_status = "petstat_CL",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/DeLong_BFPC_CL.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/AUC_BFPC_CL.pdf",
+  output_xlsx = "~/BioFINDER/Primary care/DeLong_BFPC_CL.xlsx",
+  output_pdf = "~/BioFINDER/Primary care/AUC_BFPC_CL.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
@@ -1156,34 +1313,38 @@ auc_calc(
   df = adni, 
   pet_status = "petstat_CL",
   csf_marker = "CSF_18142", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/DeLong_ADNI_CL.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/AUC_ADNI_CL.pdf",
+  output_xlsx = "~/ADNI/DeLong_ADNI_CL.xlsx",
+  output_pdf = "~/ADNI/AUC_ADNI_CL.pdf",
   marker_colors = c("#4ca481", "#c52851", "#4ebbd6"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF p-tau181/AB42")
 )
 
 #3B. Diagnostic accuracy CL ----
 
-dta_calc(
-  df = df.val, 
-  pet_status = "petstat_CL",
-  csf_marker = "csf_4240", 
-  csf_pos_cutoff = 0.072,
-  csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_CL.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_CL_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_CL_table.xlsx"
-)
+df.val.cl <- df.val %>% drop_na(CL_fnc_ber_com_composite)
 
 dta_calc(
-  df = df.ad, 
+  df = df.val.cl, 
   pet_status = "petstat_CL",
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_CL.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_CL_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_CL_table.xlsx"
+  output_xlsx = "~/BioFINDER/MC/Res_CL.xlsx",
+  output_pval_xlsx = "~/BioFINDER/MC/Res_CL_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/MC/Res_CL_table.xlsx"
+)
+
+df.ad.cl <- df.ad %>% drop_na(CL_fnc_ber_com_composite)
+
+dta_calc(
+  df = df.ad.cl, 
+  pet_status = "petstat_CL",
+  csf_marker = "csf_4240", 
+  csf_pos_cutoff = 0.072,
+  csf_pos2_cutoff = 0.058,
+  output_xlsx = "~/BioFINDER/Primary care/Res_CL.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Primary care/Res_CL_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Primary care/Res_CL_table.xlsx"
 )
 
 dta_calc(
@@ -1193,37 +1354,37 @@ dta_calc(
   csf_pos_cutoff = 0.028,
   csf_pos2_cutoff = NULL,
   csf_direction = "upper",
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_CL.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_CL_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_CL_table.xlsx"
+  output_xlsx = "~/ADNI/Res_CL.xlsx",
+  output_pval_xlsx = "~/ADNI/Res_CL_pval.xlsx",
+  output_table_xlsx = "~/ADNI/Res_CL_table.xlsx"
 )
 
 #3C. Plots CL----
 
 ##1cp
-create_plot_1cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_CL.xlsx"),
+create_plot_1cp(df = read_xlsx("~/BioFINDER/MC/Res_CL.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate//Test/Res_1cp_CL.pdf")
+                output_pdf = "~/BioFINDER/MC/Res_1cp_CL.pdf")
 
-create_plot_1cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_CL.xlsx"),
+create_plot_1cp(df = read_xlsx("~/BioFINDER/Primary care/Res_CL.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_1cp_CL.pdf")
+                output_pdf = "~/BioFINDER/Primary care/Res_1cp_CL.pdf")
 
-create_plot_1cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_CL.xlsx"),
+create_plot_1cp(df = read_xlsx("~/ADNI/Res_CL.xlsx"),
                 csf_color = "#4ebbd6", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/ADNI/Test/Res_1cp_CL.pdf")
+                output_pdf = "~/ADNI/Res_1cp_CL.pdf")
 
 ##2cp
 
-create_plot_2cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_CL.xlsx"),
+create_plot_2cp(df = read_xlsx("~/BioFINDER/MC/Res_CL.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate//Test/Res_1cp_CL.pdf",
-                output_pdf_grey = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_grey_CL.pdf")
+                output_pdf = "~/BioFINDER/MC/Res_1cp_CL.pdf",
+                output_pdf_grey = "~/BioFINDER/MC/Res_grey_CL.pdf")
 
-create_plot_2cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_CL.xlsx"),
+create_plot_2cp(df = read_xlsx("~/BioFINDER/Primary care/Res_CL.xlsx"),
                 csf_color = "#295dbf", 
-                output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_1cp_CL.pdf",
-                output_pdf_grey = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_grey_CL.pdf")
+                output_pdf = "~/BioFINDER/Primary care/Res_1cp_CL.pdf",
+                output_pdf_grey = "~/BioFINDER/Primary care/Res_grey_CL.pdf")
 
 
 
@@ -1231,26 +1392,26 @@ create_plot_2cp(df = read_xlsx("~/Documents/Projects/LP vs CSF/LP vs CSF/BioFIND
 ----------------------- #4. CI only ----------------------
 #4A. AUC----
 
-df.val_ci <- df.val %>% filter(!cognitive_status_baseline_variable %in% c("Normal", "SCD"))
+df.val_ci <- df.val %>% filter(!cognitive_status_baseline_variable %in% c("Normal", "SCD", "NA"))
 
 auc_calc(
   df = df.val_ci, 
   pet_status = "VR_overall",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/DeLong_BFMC_VR_CI.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/AUC_BFMC_VR_CI.pdf",
+  output_xlsx = "~/BioFINDER/MC/DeLong_BFMC_VR_CI.xlsx",
+  output_pdf = "~/BioFINDER/MC/AUC_BFMC_VR_CI.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
 
-df.ad_ci <- df.ad %>% filter(!cognitive_status_baseline_variable %in% c("Normal", "SCD"))
+df.ad_ci <- df.ad %>% filter(!cognitive_status_baseline_variable %in% c("Normal", "SCD", "NA"))
 
 auc_calc(
   df = df.ad_ci, 
   pet_status = "VR_overall",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/DeLong_BFPC_VR_CI.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/AUC_BFPC_VR_CI.pdf",
+  output_xlsx = "~/BioFINDER/Primary care/DeLong_BFPC_VR_CI.xlsx",
+  output_pdf = "~/BioFINDER/Primary care/AUC_BFPC_VR_CI.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
@@ -1264,9 +1425,9 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_CI.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_CI_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Validate/Test/Res_VR_CI_table.xlsx"
+  output_xlsx = "~/BioFINDER/MC/Res_VR_CI.xlsx",
+  output_pval_xlsx = "~/BioFINDER/MC/Res_VR_CI_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/MC/Res_VR_CI_table.xlsx"
 )
 
 dta_calc(
@@ -1275,9 +1436,9 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_CI.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_CI_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Primary care/Test/Res_VR_CI_table.xlsx"
+  output_xlsx = "~/BioFINDER/Primary care/Res_VR_CI.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Primary care/Res_VR_CI_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Primary care/Res_VR_CI_table.xlsx"
 )
 
 
@@ -1293,8 +1454,8 @@ auc_calc(
   df = df.pool_scd, 
   pet_status = "VR_overall",
   csf_marker = "csf_4240", 
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/DeLong_BFMC_VR_SCD.xlsx",
-  output_pdf = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/AUC_BFMC_VR_SCD.pdf",
+  output_xlsx = "~/BioFINDER/DeLong_BFMC_VR_SCD.xlsx",
+  output_pdf = "~/BioFINDER/AUC_BFMC_VR_SCD.pdf",
   marker_colors = c("#4ca481", "#c52851", "#295dbf"),
   marker_labels = c("Plasma p-tau217", "Plasma p-tau217/AB42", "CSF AB42/40")
 )
@@ -1308,15 +1469,15 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_SCD.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_SCD_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_SCD_table.xlsx"
+  output_xlsx = "~/BioFINDER/Res_VR_SCD.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Res_VR_SCD_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Res_VR_SCD_table.xlsx"
 )
 
 
 #6. Age strat ----------------------
 
-df.pool_bf <- rbind(df.ad, df.ad)
+df.pool_bf <- rbind(df.val, df.ad)
 df.pool_bf$age_category <- ifelse(df.pool_bf$age_blood_test < median(df.pool_bf$age_blood_test), 0, 1)
 table(df.pool_bf$age_category)
 median(na.omit(df$age_blood_test))
@@ -1331,9 +1492,9 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_age1.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_age1_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_age1_table.xlsx"
+  output_xlsx = "~/BioFINDER/Res_VR_age1.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Res_VR_age1_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Res_VR_age1_table.xlsx"
 )
 
 ###AGE 2
@@ -1345,14 +1506,14 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_age2.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_age2_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_age2_table.xlsx"
+  output_xlsx = "~/BioFINDER/Res_VR_age2.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Res_VR_age2_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Res_VR_age2_table.xlsx"
 )
 
 #7. Sex strat ----------------------
 
-df.pool_bf <- rbind(df.ad, df.ad)
+df.pool_bf <- rbind(df.val, df.ad)
 
 ###Male
 df_male <- df.pool_bf %>% filter(gender_baseline_variable == 0)
@@ -1363,9 +1524,9 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_M.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_M_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_M_table.xlsx"
+  output_xlsx = "~/BioFINDER/Res_VR_M.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Res_VR_M_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Res_VR_M_table.xlsx"
 )
 
 ###Female
@@ -1377,47 +1538,10 @@ dta_calc(
   csf_marker = "csf_4240", 
   csf_pos_cutoff = 0.072,
   csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_F.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_F_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_F_table.xlsx"
+  output_xlsx = "~/BioFINDER/Res_VR_F.xlsx",
+  output_pval_xlsx = "~/BioFINDER/Res_VR_F_pval.xlsx",
+  output_table_xlsx = "~/BioFINDER/Res_VR_F_table.xlsx"
 )
-
-
-
-
-#8. Outliers ----------------------
-
-df.pool_bf <- rbind(df.ad, df.ad)
-
-###Male
-df_male <- df.pool_bf %>% filter(gender_baseline_variable == 0)
-
-dta_calc(
-  df = df_male, 
-  pet_status = "VR_overall",
-  csf_marker = "csf_4240", 
-  csf_pos_cutoff = 0.072,
-  csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_M.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_M_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_M_table.xlsx"
-)
-
-###Female
-df_female <- df.pool_bf %>% filter(gender_baseline_variable == 1)
-
-dta_calc(
-  df = df_female, 
-  pet_status = "VR_overall",
-  csf_marker = "csf_4240", 
-  csf_pos_cutoff = 0.072,
-  csf_pos2_cutoff = 0.058,
-  output_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_F.xlsx",
-  output_pval_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_F_pval.xlsx",
-  output_table_xlsx = "~/Documents/Projects/LP vs CSF/LP vs CSF/BioFINDER/Test/Res_VR_F_table.xlsx"
-)
-
-
 
 
 
