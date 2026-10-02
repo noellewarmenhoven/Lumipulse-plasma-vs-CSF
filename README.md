@@ -1,0 +1,1 @@
+Codes used for the analyses conducted in "Comparing plasma p-tau217 and plasma p-tau217/Aβ42 to CSF biomarkers for assessing Alzheimer’s disease pathology" by Warmenhoven et al. (2026), Nature Aging. Includes comparisons of diagnostic accuracy data using a bootstrap hypothesis approach. Required packages in R are part of the file. 
